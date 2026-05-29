@@ -69,7 +69,7 @@ def main(args):
     # model
     model = make_meta_arch(cfg['model_name'], **cfg['model'])
     # not ideal for multi GPU training, ok for now
-    model = nn.DataParallel(model, device_ids=cfg['devices'])
+    model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg['devices']])
     # optimizer
     optimizer = make_optimizer(model, cfg['opt'])
     # schedule
@@ -85,9 +85,7 @@ def main(args):
     if args.resume:
         if os.path.isfile(args.resume):
             # load ckpt, reset epoch / best rmse
-            checkpoint = torch.load(args.resume,
-                                    map_location=lambda storage, loc: storage.cuda(
-                                        cfg['devices'][0]))
+            checkpoint = torch.load(args.resume, map_location=cfg['devices'][0])
             args.start_epoch = checkpoint['epoch'] + 1
             model.load_state_dict(checkpoint['state_dict'])
             model_ema.module.load_state_dict(checkpoint['state_dict_ema'])

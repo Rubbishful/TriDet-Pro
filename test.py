@@ -156,7 +156,7 @@ def main():
     print(f"  构建前已分配: {alloc_before:.1f} MB")
 
     model = make_meta_arch(cfg["model_name"], **cfg["model"])
-    model = nn.DataParallel(model, device_ids=cfg["devices"])
+    model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg["devices"]])
     model.train()
 
     alloc_after, _ = get_gpu_memory()

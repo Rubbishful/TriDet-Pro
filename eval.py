@@ -56,15 +56,12 @@ def main(args):
     # model
     model = make_meta_arch(cfg['model_name'], **cfg['model'])
     # not ideal for multi GPU training, ok for now
-    model = nn.DataParallel(model, device_ids=cfg['devices'])
+    model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg['devices']])
 
     """4. load ckpt"""
     print("=> loading checkpoint '{}'".format(ckpt_file))
     # load ckpt, reset epoch / best rmse
-    checkpoint = torch.load(
-        ckpt_file,
-        map_location=lambda storage, loc: storage.cuda(cfg['devices'][0])
-    )
+    checkpoint = torch.load(ckpt_file, map_location=cfg['devices'][0])
     # load ema model instead
     print("Loading from EMA model ...")
     model.load_state_dict(checkpoint['state_dict_ema'])
