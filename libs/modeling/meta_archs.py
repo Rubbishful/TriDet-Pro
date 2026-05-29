@@ -1,4 +1,5 @@
 import math
+import time
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -424,6 +425,7 @@ class TriDet(nn.Module):
 
     def forward(self, video_list):
         # batch the video list into feats (B, C, T) and masks (B, 1, T)
+        t_net_start = time.time()
         batched_inputs, batched_masks = self.preprocessing(video_list)
 
         # forward the network (backbone -> neck -> heads)
@@ -481,11 +483,26 @@ class TriDet(nn.Module):
 
         else:
             # decode the actions (sigmoid / stride, etc)
+            t_net_end = time.time()
             results = self.inference(
                 video_list, points, fpn_masks,
                 out_cls_logits, out_offsets,
                 out_lb_logits, out_rb_logits,
             )
+            t_infer_end = time.time()
+            # accumulate timing for profiling
+            if not hasattr(self, '_profile_net_time'):
+                self._profile_net_time = 0.0
+                self._profile_infer_time = 0.0
+                self._profile_count = 0
+            self._profile_net_time += t_net_end - t_net_start
+            self._profile_infer_time += t_infer_end - t_net_end
+            self._profile_count += 1
+            if self._profile_count % 50 == 0:
+                print(f"[MetaArch] video #{self._profile_count}: "
+                      f"backbone+heads={(self._profile_net_time/self._profile_count)*1000:.0f}ms, "
+                      f"inference+NMS={(self._profile_infer_time/self._profile_count)*1000:.0f}ms "
+                      f"(avg over {self._profile_count} videos)")
             return results
 
     @torch.no_grad()

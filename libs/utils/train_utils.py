@@ -368,8 +368,11 @@ def valid_one_epoch(
 
     # loop over validation set
     start = time.time()
+    model_time = 0.0
+    accum_time = 0.0
     for iter_idx, video_list in enumerate(val_loader, 0):
         # forward the model (wo. grad)
+        t0 = time.time()
         with torch.no_grad():
             output = model(video_list)
 
@@ -385,6 +388,8 @@ def valid_one_epoch(
                     results['t-end'].append(output[vid_idx]['segments'][:, 1])
                     results['label'].append(output[vid_idx]['labels'])
                     results['score'].append(output[vid_idx]['scores'])
+        t1 = time.time()
+        model_time += t1 - t0
 
         # printing
         if (iter_idx != 0) and iter_idx % (print_freq) == 0:
@@ -398,11 +403,21 @@ def valid_one_epoch(
                   'Time {batch_time.val:.2f} ({batch_time.avg:.2f})'.format(
                 iter_idx, len(val_loader), batch_time=batch_time))
 
+    # --- profiling summary ---
+    total_time = model_time + accum_time
+    n_vids = iter_idx + 1
+    print(f"\n[Profile] Processed {n_vids} videos")
+    print(f"[Profile] Model forward (inference + NMS): {model_time:.1f}s ({100*model_time/max(total_time,1e-6):.0f}%)")
+    print(f"[Profile] Avg per video: {model_time/max(n_vids,1):.2f}s")
+    print(f"[Profile] Result gather + cat: {accum_time:.1f}s")
+
     # gather all stats and evaluate
+    t_gather = time.time()
     results['t-start'] = torch.cat(results['t-start']).numpy()
     results['t-end'] = torch.cat(results['t-end']).numpy()
     results['label'] = torch.cat(results['label']).numpy()
     results['score'] = torch.cat(results['score']).numpy()
+    print(f"[Profile] torch.cat + .numpy(): {time.time() - t_gather:.2f}s")
 
     if evaluator is not None:
         if (ext_score_file is not None) and isinstance(ext_score_file, str):

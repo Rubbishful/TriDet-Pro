@@ -1,5 +1,12 @@
 # Functions for 1D NMS, modified from:
 # https://github.com/open-mmlab/mmcv/blob/master/mmcv/ops/nms.py
+import os, sys
+
+# Ensure this directory is on sys.path so the compiled .pyd can be found
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+if _this_dir not in sys.path:
+    sys.path.insert(0, _this_dir)
+
 import torch
 
 # Try to import the C extension, fall back to pure PyTorch
@@ -145,12 +152,22 @@ class NMSop(torch.autograd.Function):
         return sorted_segs.clone(), sorted_scores.clone(), sorted_cls_idxs.clone()
 
 
+# Track which backend is being used (diagnostic, printed once)
+_nms_backend_checked = False
+
 class SoftNMSop(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx, segs, scores, cls_idxs,
         iou_threshold, sigma, min_score, method, max_num
     ):
+        global _nms_backend_checked
+        if not _nms_backend_checked:
+            _nms_backend_checked = True
+            if _has_nms_cpu:
+                print(f"[NMS] Using C extension backend (nms_1d_cpu)")
+            else:
+                print(f"[NMS] Using pure PyTorch fallback (slower)")
         if _has_nms_cpu:
             # pre allocate memory for sorted results
             dets = segs.new_empty((segs.size(0), 3), device='cpu')
@@ -173,7 +190,7 @@ class SoftNMSop(torch.autograd.Function):
             sorted_cls_idxs = sorted_cls_idxs[:n_segs]
         else:
             inds, dets = _softnms_1d_torch(
-                segs, scores, iou_threshold, sigma, min_score, method)
+                segs.cpu(), scores.cpu(), iou_threshold, sigma, min_score, method)
             if max_num > 0:
                 n_segs = min(len(inds), max_num)
             else:

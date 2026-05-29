@@ -1,0 +1,42 @@
+Start testing model TriDet ...
+[NMS] Using C extension backend (nms_1d_cpu)
+Test: [00010/00212]     Time 1.29 (1.29)
+Test: [00020/00212]     Time 0.07 (0.68)
+Test: [00030/00212]     Time 0.07 (0.48)
+Test: [00040/00212]     Time 0.07 (0.38)
+[MetaArch] video #50: backbone+heads=41ms, inference+NMS=32ms (avg over 50 videos)
+Test: [00050/00212]     Time 0.07 (0.32)
+Test: [00060/00212]     Time 0.06 (0.27)
+Test: [00070/00212]     Time 0.07 (0.24)
+Test: [00080/00212]     Time 0.07 (0.22)
+Test: [00090/00212]     Time 0.07 (0.21)
+[MetaArch] video #100: backbone+heads=38ms, inference+NMS=30ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.07 (0.19)
+Test: [00110/00212]     Time 0.09 (0.18)
+Test: [00120/00212]     Time 0.08 (0.17)
+Test: [00130/00212]     Time 0.07 (0.17)
+Test: [00140/00212]     Time 0.08 (0.16)
+[MetaArch] video #150: backbone+heads=37ms, inference+NMS=30ms (avg over 150 videos)
+Test: [00150/00212]     Time 0.06 (0.15)
+Test: [00160/00212]     Time 0.09 (0.15)
+Test: [00170/00212]     Time 0.10 (0.15)
+Test: [00180/00212]     Time 0.06 (0.14)
+Test: [00190/00212]     Time 0.09 (0.14)
+[MetaArch] video #200: backbone+heads=37ms, inference+NMS=31ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.07 (0.14)
+Test: [00210/00212]     Time 0.07 (0.13)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 15.7s (100%)
+[Profile] Avg per video: 0.07s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 83.44 (%)
+|tIoU = 0.40: mAP = 79.47 (%)
+|tIoU = 0.50: mAP = 72.66 (%)
+|tIoU = 0.60: mAP = 60.54 (%)
+|tIoU = 0.70: mAP = 46.86 (%)
+Avearge mAP: 68.59 (%)
+All done! Total time: 50.37 sec
