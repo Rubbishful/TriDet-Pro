@@ -1,0 +1,19 @@
+[Profile] Processed 4926 videos
+[Profile] Model forward (inference + NMS): 216.4s (100%)
+[Profile] Avg per video: 0.04s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.04s
+[RESULTS] Action detection results on anet1.3_tsp_filtered.
+
+|tIoU = 0.50: mAP = 54.67 (%)
+|tIoU = 0.55: mAP = 51.69 (%)
+|tIoU = 0.60: mAP = 48.35 (%)
+|tIoU = 0.65: mAP = 45.35 (%)
+|tIoU = 0.70: mAP = 41.87 (%)
+|tIoU = 0.75: mAP = 37.67 (%)
+|tIoU = 0.80: mAP = 32.72 (%)
+|tIoU = 0.85: mAP = 26.39 (%)
+|tIoU = 0.90: mAP = 18.62 (%)
+|tIoU = 0.95: mAP = 8.10 (%)
+Avearge mAP: 36.54 (%)
+All done! Total time: 310.62 sec
