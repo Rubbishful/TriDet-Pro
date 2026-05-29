@@ -1,0 +1,1895 @@
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024 2171
+Temporal Action Localization in the Deep Learning
+Era: A Survey
+Binglu Wang , Member , IEEE, Y ongqiang Zhao , Member , IEEE,L eY a n g ,
+Teng Long, Fellow, IEEE, and Xuelong Li , Fellow, IEEE
+(Survey Paper)
+Abstract—The temporal action localization research aims to dis-
+cover action instances from untrimmed videos, representing a fun-
+damental step in the ﬁeld of intelligent video understanding. With
+the advent of deep learning, backbone networks have been instru-
+mental in providing representative spatiotemporal features, while
+the end-to-end learning paradigm has enabled the development of
+high-quality models through data-driven training. Both supervised
+and weakly supervised learning approaches have contributed to
+the rapid progress of temporal action localization, resulting in a
+multitude of methods and a large body of literature, making a
+comprehensive survey a pressing necessity. This paper presents
+a thorough analysis of existing action localization works, offer-
+ing a well-organized taxonomy that highlights the strengths and
+weaknesses of each strategy. In the realm of supervised learning,
+in addition to the anchor mechanism, we introduce a novel clas-
+siﬁcation mechanism to categorize and summarize existing works.
+Similarly, for weakly supervised learning, we extend the traditional
+pre-classiﬁcation and post-classiﬁcation mechanisms by providing
+a fresh perspective on enhancement strategies. Furthermore, we
+shed light on the bottleneck of conﬁdence estimation, a critical
+yet overlooked aspect of current works. By conducting detailed
+analyses, this survey serves as a valuable resource for researchers,
+providing beneﬁcial guidance to newcomers and inspiring seasoned
+researchers alike.
+Index Terms —Deep learning, supervised learning, survey,
+temporal action localization, weakly supervised learning.
+I. I NTRODUCTION
+I
+N THE modern era, video has emerged as a versatile,
+cost-effective, and powerful medium for transporting infor-
+mation. V arious scenarios, such as trafﬁc monitoring, sports
+competitions, and ﬁlm production, continuously generate a
+vast number of videos. While these videos contain informa-
+tive action segments, they are often interspersed with lengthy
+Manuscript received 19 January 2023; revised 22 October 2023; accepted 4
+November 2023. Date of publication 6 November 2023; date of current version
+6 March 2024. This work was supported by the China Postdoctoral Science
+Foundation under Grants 2022M710393, 2023M733387, 2022TQ0035, and
+2023TQ0344. Recommended for acceptance by J. C. Niebles. (Corresponding
+authors: Le Yang and Xuelong Li.)
+Binglu Wang is with the School of Information and Electronics, Beijing In-
+stitute of Technology, Beijing 100811, China, and also with Northwestern Poly-
+technical University, Xi’an 710072, China (e-mail: wbl921129@gmail.com).
+Y ongqiang Zhao, Le Y ang, and Xuelong Li are with the Northwestern
+Polytechnical University, Xi’an 710072, China (e-mail: zhaoyq@nwpu.edu.cn;
+nwpuyangle@gmail.com; li@nwpu.edu.cn).
+Teng Long is with the School of Information and Electronics, Beijing Institute
+of Technology, Beijing 100811, China (e-mail: longteng@bit.edu.cn).
+Digital Object Identiﬁer 10.1109/TPAMI.2023.3330794
+Fig. 1. Illustration of the supervised temporal action localization task (TAL)
+and the weakly supervised temporal action localization task (WTAL), where the
+difference lies in the supervision signal.
+sequences of irrelevant backgrounds. Such videos are referred
+to as untrimmed videos [1], [2], in contrast to human-trimmed
+videos that solely focus on informative action segments. The
+objective of temporal action localization is to address this chal-
+lenge by efﬁciently extracting meaningful action instances and
+providing their respective starting time, ending time, and clas-
+siﬁcation label. The task of temporal action localization holds
+fundamental importance in intelligent video analysis and offers
+signiﬁcant contributions to a multitude of applications. Notable
+applications include video editing [3], video content analy-
+sis [4], highlight extraction [5], video summarization [6], [7],
+video-based recommendation [8], industrial video analysis [9],
+abnormal behavior detection [10], smart surveillance [11], and
+human-robot interaction [12]. Through robust temporal action
+localization, these applications stand to beneﬁt from improved
+efﬁciency, accuracy, and automation.
+To effectively detect action instances in untrimmed videos,
+temporal action localization algorithms necessitate robust
+spatio-temporal modeling. This entails the simultaneous con-
+sideration of appearance cues within individual frames and the
+temporal evolution across multiple neighboring frames. Fig. 1
+illustrates how the community approaches temporal action local-
+ization with distinct supervision levels, namely, fully supervised
+and weakly supervised methodologies.
+This survey is dedicated to exploring the advancements in
+temporal action localization within the context of deep learning.
+© 2023 The Authors. This work is licensed under a Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 License. For more information, see
+https://creativecommons.org/licenses/by-nc-nd/4.0/
+2172 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+TABLE I
+SUMMARY OF PREVIOUS TEMPORAL ACTION LOCALIZA TIONSURVEYS ABOUT THE TEMPORAL ACTION LOCALIZA TIONTASK
+Fig. 2. Performance development for both supervised methods and weakly
+supervised methods, measured by mAP under IoU threshold 0.5 on THUMOS14
+dataset.
+Over the past seven years, the research landscape for tempo-
+ral action localization has been remarkably dynamic, with a
+substantial volume of literature emerging since its inception [1].
+As depicted in Fig. 2, the supervised methods have undergone
+impressive performance improvements. Notably, under an In-
+tersection over Union (IoU) threshold of 0.5, the supervised
+approach has seen its performance surge from 19.0% [1] to
+an impressive 72.9% [24], representing a remarkable fourfold
+increase over the past seven-year period. While the task of
+weakly supervised temporal action localization was proposed
+subsequently, its reliance on video-level labels presents unique
+challenges. Nonetheless, signiﬁcant progress has been achieved
+in this area as well. Commencing with an initial performance of
+13.7% [2], the weakly supervised approach has now reached a
+commendable 42.8% [25].
+In times of rapid change, it becomes imperative to sum-
+marize and assess existing research to understand the reasons
+behind advancements, gather valuable insights, identify cur-
+rent methodological bottlenecks, and outline future research
+directions. Temporal action localization plays a crucial role
+in the domain of video understanding, alongside foundational
+techniques like action recognition. Despite action recognition
+being extensively covered in multiple high-quality surveys[29],
+[30], [31], the temporal action localization domain lacks a
+comprehensive survey. As shown in Table I, although Xia et
+al. [26] recognize the need to review existing works, their study
+focus on methods preceding 2018, resulting in the omission
+of recent progress and insufﬁcient in-depth analyses. Recently,
+Elahe et al. [27] provide a summary of both fully-supervised and
+weakly-supervised methods for temporal action localization,
+including discussions on related settings such as spatio-temporal
+action detection. However, Elahe et al. [27] primarily elaborate
+on well-known paradigms, such as categorizing methods into
+anchor-based and anchor-free pipelines, without introducing a
+brand-new categorization pipeline. In contrast, our work offers
+multiple categorizations and highlights a key bottleneck present
+in existing action localization algorithms.
+To address this gap comprehensively, we present a thorough
+survey of representative action localization works in the deep
+learning era. Our survey encompasses multiple crucial aspects
+to provide a comprehensive analysis of the ﬁeld. Firstly, we
+systematically categorize existing works into distinct groups,
+developing a well-deﬁned taxonomy that offers a clear and struc-
+tured overview of the various paradigms employed in temporal
+action localization. Alongside this categorization, we conduct
+a meticulous analysis of the strengths and weaknesses associ-
+ated with each paradigm, providing valuable insights into their
+performance. Secondly, throughout the survey, we emphasize
+the characteristics of inﬂuential works that have signiﬁcantly
+contributed to the advancement of temporal action localization
+research. By recognizing these pioneering contributions, we
+shed light on the prominent trends and developments within
+the ﬁeld. Furthermore, our investigation identiﬁes a critical
+performance bottleneck in current temporal action localization
+methods, primarily stemming from challenges in accurately
+estimating conﬁdence scores. Finally, drawing from our compre-
+hensive analysis, we conclude by suggesting promising research
+directions for subsequent investigations in temporal action local-
+ization. These insights are intended to inspire and guide future
+research endeavors, with the ultimate goal of driving continued
+advancements in the ﬁeld.
+ An in-depth review for the supervised temporal action lo-
+calization task from multiple perspectives. Besides the classical
+anchor perspective, we propose a new classiﬁcation perspec-
+tive, and categorize existing works into the frame classiﬁcation
+pipeline or the proposal classiﬁcation pipeline.
+ An in-depth review for the weakly supervised temporal
+action localization task. Apart from the traditional perspective,
+we review existing works from the enhancement perspective,
+and categorize them into enhanced classiﬁer, enhanced feature,
+and enhanced attention pipeline.
+ We identify a potential bottleneck in the process of conﬁ-
+dence score estimation within the context of temporal action lo-
+calization. This identiﬁcation sheds light on introducing reﬁned
+algorithms for evaluating prediction quality, ultimately elevating
+the performance of action localization to a higher level.
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2173
+Our survey endeavors to offer a comprehensive and insightful
+analysis of the temporal action localization ﬁeld by thoroughly
+exploring the strengths, weaknesses, and research trends of
+various methodologies. The subsequent sections of the paper
+are structured as follows. Section II serves as an introduction
+to the background of temporal action localization, providing
+essential context to the readers. In Section III, we delve into the
+supervised temporal action localization task, tracing its evolu-
+tion and presenting multiple categorizations. This section offers
+a comprehensive discussion of the pros and cons associated with
+different approaches in this domain. Similarly, Section IV is
+dedicated to the discussion of the weakly supervised temporal
+action localization task. We explore its evolution and various cat-
+egorizations, engaging in an in-depth analysis of the advantages
+and limitations of existing methodologies. Next, in Section V,
+we identify a critical bottleneck within current methods, specif-
+ically the challenge of accurately estimating conﬁdence scores,
+and discuss other promising research directions. Finally, in
+Section VI, we draw meaningful conclusions from our analysis,
+summarizing the key ﬁndings and highlighting potential avenues
+for further investigation. Through this well-structured approach,
+our survey aims to contribute to the advancement of temporal
+action localization research while providing valuable insights to
+the scholarly community.
+II. B ACKGROUND
+In this section, we provide a comprehensive research back-
+ground for the temporal action localization task. We commence
+by presenting a general formulation of the task, capturing its es-
+sential characteristics and objectives. Subsequently, we explore
+and differentiate between two distinct settings: the supervised
+setting and the weakly supervised setting, each offering unique
+challenges and approaches for temporal action localization.
+Additionally, we offer a concise overview of the historical
+development of temporal action localization. By examining its
+evolutionary journey, we gain valuable insights into the pro-
+gression of methods and key milestones that have shaped the
+ﬁeld over time. Through this detailed exposition, our aim is to
+establish a solid foundation of knowledge that sets the stage for
+the subsequent discussions and analyses in this survey.
+A. Notation and Taxonomy
+In this context, we are given a datasetX comprising N videos,
+denoted as X = {Xi}N
+i=1. Each video Xi is accompanied by a
+corresponding supervision label Yi. During the training phase,
+the algorithm processes video Xi and generates predictions,
+which are then compared with the respective supervision label
+Yi to guide the learning process.
+l = L (Φ(Xi|W) ,Yi) , (1)
+The loss function L(·) is utilized to quantify the discrepancy be-
+tween the predictions made by the algorithm, where Φ(Xi|W)
+represents the algorithm’s predictions, andW denotes the algo-
+rithm’s parameter.
+The training phase ensures that the algorithm learns to rec-
+ognize accurate action patterns for each category, leveraging
+the provided supervision labels. During the inference phase,
+the algorithm’s objective is to precisely detect action instances
+Pi = {(ts
+j ,t e
+j ,c j ,s j )}Ni
+j=1 within each untrimmed video. Specif-
+ically, the algorithm discovers Ni action instances in the ith
+video, with the start time and end time of the jth instance
+denoted as ts
+j and te
+j , respectively. Additionally, cj represents
+the predicted category, and sj is the conﬁdence score associated
+with this prediction.
+It is essential to note that the distinction between the su-
+pervised paradigm and the weakly supervised paradigm lies
+in the nature of the supervision label Y, leading to speciﬁc
+challenges for each setting. The supervised setting beneﬁts from
+precise supervision, allowing for accurate action localization.
+Conversely, the weakly supervised setting poses challenges due
+to its reliance on video-level labels, leading to the need for
+innovative approaches to precisely identify action instances in
+untrimmed videos.
+In the supervised setting, each training video is accom-
+panied by a detailed supervision label, denoted as Yi =
+{(ts
+j ,t e
+j ,c j )}Ui
+j=1. This label provides explicit information, in-
+cluding the start time, end time, and category label for each
+action instance within the video. Here, Ui denotes the total
+number of instances present in the video. The loss function,
+as represented in Equation (1), takes into account both the clas-
+siﬁcation and regression losses. Supervised algorithms lever-
+age these annotations to learn action patterns comprehensively,
+albeit facing challenges stemming from signiﬁcant variations
+in action duration [1], [14], [36], [42], [50],a sw e l la sd i s -
+crepancies in action patterns [15], [16], [51], [52], and other
+factors.
+Conversely, the weakly supervised setting involves training
+videos with video-level classiﬁcation labels, denoted as Yi =
+[c1
+i ,c 2
+i ,... ,c C
+i ], where cl
+i =1 indicates the presence of action
+instances from the lth category in the video. As video-level
+classiﬁcation labels only reveal the existence of action instances
+without specifying instance number or temporal boundaries, the
+loss function in Equation (1) primarily emphasizes video-level
+classiﬁcation loss. Weakly supervised algorithms grapple with
+ambiguity issues arising from action-context confusion [53],
+[54], [55], [56], part domination[57], [58], [59], and false alarms
+in backgrounds [60].
+B. History and Scope
+To the best of our knowledge, the origins of temporal ac-
+tion localization can be traced back to the concept of action
+search [61], [62], wherein algorithms aim to identify similar ac-
+tion instances within untrimmed videos, guided by an exemplary
+action instance. Zelnik et al. [61] propose a simple statistical
+distance measure for dynamic events and represented long-term
+temporal objects with spatiotemporal features at multiple tem-
+poral scales. Similarly, Gorelick et al. [62] treat human action
+as the silhouette of a moving torso and developed a 2D shape
+analyzing method to handle 3D spacetime actions. Building
+upon these initial works, Laptev et al. [63] and Duchenne et
+al. [64] introduced the concept of learning action patterns from
+movie scripts and localizing action boundaries, which marked
+2174 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+Fig. 3. Chronology for representative supervised temporal action localization research.
+the inception of weakly supervised temporal action localization.
+Laptev et al.[63] design a uniﬁed framework that simultaneously
+incorporates local space-time features, space-time pyramids,
+and multichannel non-linear SVMs for video classiﬁcation,
+leveraging movie scripts to automatically discover human ac-
+tions. In summary, traditional approaches for temporal action
+localization encompass diverse techniques, such as space-time
+features [62], spatiotemporal graphs [65], hidden Markov mod-
+els [66], and more.
+With the advent of deep learning research[67], [68], temporal
+action localization has undergone a revolutionary transforma-
+tion. Leveraging the capabilities of video recognition back-
+bones [69], [70], [71], which provide representative features,
+and adopting the end-to-end learning paradigm [36], which
+simpliﬁes complex designs, the ﬁeld has seen signiﬁcant ad-
+vancements. In the realm of supervised approaches, the anchor
+mechanism has seen notable developments, resulting in one-
+stage methods [33], [39], [72], [73], two-stage methods [14],
+[36], [52], [74], and anchor-free methods [44], [75], [76], [77].
+On the other hand, in the context of weakly supervised methods,
+the community has introduced the pre-classiﬁcation pipeline[2],
+[78], [79], [80] and the post-classiﬁcation pipeline [20], [54],
+[81], [82].
+It is essential to highlight that this survey centers speciﬁcally
+on temporal action localization research while considering other
+relevant tasks as distinct and separate topics. For instance,
+tasks such as action segmentation [83], spatiotemporal action
+detection [84], and action recognition [69], [70], [71] are not
+the primary focus of this survey and are treated as separate
+subjects.
+III. F ULL YSUPERVISED TEMPORAL ACTION LOCALIZA TION
+In the deep learning era, temporal action localization meth-
+ods can be classiﬁed into three main pipelines: the one-stage
+pipeline, the two-stage pipeline, and the anchor-free pipeline. 1
+1We use “anchor-free” to indicate methods that do not rely on the anchor
+mechanism, which has a broader scope than the term’s usage in the object
+detection domain.
+This categorization is based on whether the algorithm relies on
+default anchors and how these anchors are utilized. Furthermore,
+apart from the anchor mechanism taxonomy, we propose to re-
+view temporal action localization methods from the perspective
+of the classiﬁcation mechanism. We categorize existing works
+into two distinct pipelines: the frame classiﬁcation pipeline and
+the proposal classiﬁcation pipeline. Additionally, we delve into
+two inﬂuential aspects of existing methods: the receptive ﬁeld
+and feature representation. We summarize the representative
+characteristics of these aspects to gain valuable insights into
+their contributions to the ﬁeld. Lastly, we identify the current
+bottleneck in supervised action localization algorithms and dis-
+cuss several promising research directions aimed at overcoming
+these limitations.
+As depicted in Fig. 3, several signiﬁcant research works
+have emerged, each contributing to the advancement of action
+localization accuracy and serving as pivotal milestones in the
+ﬁeld’s chronology. In the realm of supervised temporal action
+localization, the earliest work can be traced back to detecting ac-
+tions through the classiﬁcation of sliding-window proposals [1].
+Subsequently, Gao et al.[13] introduce the anchor mechanism to
+enhance proposal ﬂexibility and accomplished action detection
+through regression based on default anchors. The pipeline’s
+progress continued with the introduction of TAL-Net[14], which
+further developed the anchor mechanism into a two-stage ap-
+proach. Subsequently, Zeng et al. [15] emphasize that action in-
+stances should not be detected individually and introduced graph
+convolution to model complex relationships among proposals,
+a concept further promoted by G-TAD [16]. Afterwards, Liu et
+al. [17] identify that sufﬁcient comparisons among clustered pro-
+posals are key factors in modeling relationships among propos-
+als. They transformed the task of localizing action scope in the
+temporal space into predicting a point in the 2D start-end space.
+More recently, ActionFormer [18] pushes the localization per-
+formance to a brand-new status, which is further developed by
+TriDet [24].
+To ensure clarity in our review, we present an elaborate
+categorization of existing research into two main groups and
+ﬁve sub-groups, as detailed in TableII. Furthermore, we provide
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2175
+TABLE II
+CA TEGORIZA TION OFEXISTING TEMPORAL ACTION LOCALIZA TIONWORKS
+Fig. 4. Schematic diagram for ﬁve temporal action localization paradigms: (a) One-stage pipeline, (b) Two-stage pipeline, (c) Anchor-free pipelin e, (d) Detection
+by frame classiﬁcation, (e) Detection by proposal classiﬁcation.
+corresponding schematic diagrams for each sub-group, visually
+depicted in Fig. 4. In the subsequent sections, we conduct
+a comprehensive review of the classiﬁcation mechanism and
+the anchor mechanism. We discuss the procedures, represen-
+tative works, strengths, and weaknesses associated with each
+mechanism.
+A. Anchor Mechanism
+One-Stage: The anchor mechanism has demonstrated re-
+markable efﬁciency in temporal action localization tasks, with
+existing works belonging to the one-stage pipeline, two-stage
+pipeline, or anchor-free pipeline. In particular, the one-stage
+pipeline [33], [37], [73], [85] stands as a simple yet effective
+solution, simultaneously predicting temporal boundaries and
+action categories for each instance, as illustrated in Fig. 4(a).
+Notably, two widely used strategies contribute to enhancing
+localization accuracy within this pipeline: (1) estimating the
+overlap score (i.e., temporal intersection over union) enables
+precise ranking of candidate instances; (2) multiple pyramid
+layers facilitate the capture of action instances with varying
+durations. Additionally, the one-stage pipeline has witnessed
+signiﬁcant advances, such as transforming the vanilla temporal
+convolutional kernel into a Gaussian kernel capable of model-
+ing action structures [39], performing boundary regression and
+action classiﬁcation via separate branches [72], and fusing ap-
+pearance and motion features in a middle-level manner [86].T o
+summarize, the one-stage pipeline effectively discovers action
+instances. However, its performance is constrained by default an-
+chors, necessitating careful tuning of hyperparameters to achieve
+optimal accuracy.
+Two-Stage: The two-stage pipeline operates by ﬁrst generat-
+ing action proposals using default temporal anchors and then
+performing elaborate boundary regression and category label
+prediction, as depicted in Fig.4(b). A representative work for the
+two-stage pipeline is R-C3D [36], which has been further devel-
+oped by TAL-Net [14]. Given its multiple procedures, the two-
+stage pipeline offers opportunities for speciﬁc designs tailored
+to temporal action localization tasks. For instance, the recep-
+tive ﬁeld alignment module [14] addresses drastic variations in
+action instances, while the attention-based graph convolutional
+2176 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+module [43] explores intra- and inter-proposal relationships. On
+one hand, the two-stage pipeline has the potential to achieve
+accurate action boundaries. On the other hand, compared to the
+one-stage pipeline, it is more sensitive to hyperparameters and
+necessitates more intricate designs.
+Anchor-Free: In contrast to the one-stage and two-stage
+pipelines that rely on default anchors, the anchor-free pipeline
+directly performs action boundary regression without refer-
+encing default anchors, as illustrated in Fig. 4(c). While not
+extensively emphasized, credit for pioneering work goes to[75],
+which predicted temporal distances from each frame to po-
+tential action boundaries. Building on this foundation, Tang
+et al. [76] draw inspiration from FCOS [121] and introduce
+an anchor-free temporal action detection framework, known as
+AFO-TAD. Subsequently, Y ang et al. [77] conduct an in-depth
+study on the anchor-free pipeline, revealing its superiority in
+handling extremely long or extremely short action instances.
+More recently, Lin et al. [44] further advance the anchor-free
+pipeline by learning salient boundary features and proposing a
+prediction-and-reﬁnement framework. In summary, the anchor-
+free pipeline exhibits robustness and simplicity in design, but
+it may encounter challenges related to the center uncertainty
+problem.
+B. Classiﬁcation Mechanism
+Frame Classiﬁcation: Temporal action localization necessi-
+tates effective spatio-temporal modeling. In the frame classi-
+ﬁcation paradigm, spatial information is initially modeled by
+classifying each frame, followed by perceiving temporal evo-
+lution through pre-deﬁned rules, as depicted in Fig. 4(d).F o r
+instance, some works [34], [40], [97] set a threshold on each
+frame’s classiﬁcation score and consider consecutive frames
+whose scores exceed the threshold as an action instance. Ad-
+ditionally, other approaches [38], [41], [50], [99] estimate the
+likelihood of start and end moments for each frame and associate
+potential start and end moments to form action instances. In
+summary, the frame classiﬁcation pipeline can achieve accurate
+action boundaries and effectively discover long-duration action
+instances. However, addressing each frame individually poses a
+limitation in temporal modeling, often leading to false alarms
+in backgrounds. Moreover, the reliance on multiple separated
+procedures, governed by hand-crafted rules, may constrain the
+pipeline’s performance.
+Proposal Classiﬁcation: In addition to the frame classiﬁca-
+tion pipeline, the proposal classiﬁcation pipeline has garnered
+increasing research interest in recent years, as illustrated in
+Fig. 4(e). This pipeline revolves around two fundamental prob-
+lems: (1) obtaining the proposal, and (2) performing classiﬁca-
+tion. Regarding the ﬁrst problem, pioneering works [1], [122]
+have employed the sliding window strategy to construct action
+proposals. Subsequently, researchers have introduced the tem-
+poral actions grouping strategy [105], [107], [123] and the dense
+enumeration strategy [17], [42]. As for the second problem,
+early explorations [1], [122] independently performed classi-
+ﬁcation and regression for each action proposal. However, the
+community has recognized the impact of relationships among
+multiple proposals and subsequently developed the graph con-
+volutional theory to simultaneously consider multiple propos-
+als [15], [45], [107]. By leveraging proposals, the proposal clas-
+siﬁcation pipeline can achieve a high recall rate and effectively
+reduce background errors. However, a large number of proposals
+may result in heavy computational overhead, and the use of ﬁxed
+proposals can limit the algorithm’s ﬂexibility.
+C. Categorization From the Methodology View
+This section provides a comprehensive review of existing
+temporal action localization methods from a methodological
+perspective. We focus on two crucial factors, namely, the recep-
+tive ﬁeld and feature representation, and analyze their inﬂuence
+on the localization performance. The detailed categorization of
+the reviewed methods is presented in Table III.
+Receptive Field: The receptive ﬁeld plays a crucial role in
+accurately determining action boundaries, as effective temporal
+modeling is essential for temporal action localization. In the
+early explorations [38], [98], [123], video frames were inde-
+pendently processed to learn feature representation and perform
+classiﬁcation, resulting in limited temporal receptive ﬁelds. To
+address this limitation, the pyramid network architecture [16],
+[33], [39], [86] was introduced, which employs multiple layers to
+gradually increase the receptive ﬁeld layer-by-layer. Although
+these approaches primarily capture intra-video local relation-
+ships and can learn detailed feature representations from each
+frame, they are constrained by their local receptive ﬁelds. As a
+result, these pipelines may struggle to model global relationships
+and are limited in their ability to jointly learn from multiple
+instances within a video.
+To enhance the temporal receptive ﬁeld, the community has
+proposed three types of solutions: recurrent memory, graph
+models, and transformers. In the case of recurrent memory,
+early attempts by Escorcia et al. [122] and Ma et al. [97]
+employ Long Short-Term Memory (LSTM) [126] to capture
+temporal dependencies. This approach was further developed
+by others [35], [99], [106] with the introduction of Gated Re-
+current Unit (GRU) [127]. On the other hand, for graph models,
+P-GCN [45] used graph convolutions to capture relationships
+among action proposals, while G-TAD [16] proposes the sub-
+graph alignment layer to discover action instances by classifying
+sub-graphs. More recently, transformer architectures, known
+for their effectiveness in modeling long-term dependencies,
+have been adapted for action localization tasks. Early attempts
+include the relaxed transformer decoder network [111] and
+augmented transformer [101]. These methods offer effective
+temporal modeling and the ability to associate multiple instances
+within an untrimmed video, thus addressing the intra-video
+diversity. However, their focus on globality modeling may
+lead to insufﬁcient detail representation and hinder boundary
+accuracy.
+In addition to exploring intra-video relationships, there have
+been some works [114], [115] that investigate inter-video re-
+lationships. Wang et al. [114] propose a siamese network to
+simultaneously process two proposals and verify their similarity.
+On the other hand, Zhang et al. [115] associate co-occurring
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2177
+TABLE III
+SUMMARY OF EXISTING TEMPORAL ACTION LOCALIZA TIONMETHODS FROM TWO IMPORTANT METHODOLOGY VIEWS:R ECEPTIVE FIELD AND FEA TURE
+REPRESENTA TION
+action instances within two videos using a cross-video similarity
+matrix. The modeling of inter-video relationships contributes
+to learning representative features for each action category.
+However, it is important to note that such an inter-video pipeline
+cannot independently localize actions and often collaborates
+with traditional intra-video methods.
+Feature Representation: The choice of feature representation
+directly impacts the performance of action localization. Early
+works adopted off-the-shelf video recognition backbones for
+end-to-end learning. Some widely used backbones include the
+C3D network [69], utilized by [1], [34], [36], and the TSN
+network [128], employed by [105], due to their ability to extract
+representative spatiotemporal features [129]. Additionally, cer-
+tain works [73], [97] ﬁrst process each frame individually using
+an image recognition backbone (e.g., VGG [68],R e s N e t[130]),
+and then capture temporal evolution through recurrent strate-
+gies [97] or non-local strategies [73]. This end-to-end learning
+approach allows adaptive learning of representative features
+for the temporal action localization task, but it necessitates
+signiﬁcant GPU memory and computational resources.
+To alleviate the computation burden, many researchers adopt
+a two-step approach: ﬁrst, they pre-extract features from
+untrimmed input videos, and then they train the action local-
+ization model. This pipeline is widely used due to its efﬁciency
+in training. In this context, the I3D [70] network, pre-trained
+on the Kinetics dataset [70], and the two-stream network [128],
+pre-trained on the ActivityNet dataset[131], emerge as two dom-
+inant backbones. To improve the feature representation, some
+studies incorporate additional fully-connected or convolutional
+layers to project the vanilla features into a feature space more
+suitable for the action localization task. However, despite these
+efforts, the feature representation still lacks ﬂexibility, which
+limits the localization performance as it heavily depends on the
+recognition model used for feature extraction.
+To allevaite this issue, recent works [17], [44], [52] propose a
+two-step approach, involving ﬁnetuning the backbone network
+and then extracting features. Additionally, efforts have been
+devoted to reducing memory consumption and enabling end-to-
+end training [96], [141]. Notably, TSP [141] enhances temporal
+sensitivity by simultaneously considering action-level classiﬁ-
+cation and temporal-region classiﬁcation. The TSP features have
+become representative and widely adopted in subsequent works,
+particularly in action localization challenges. More recently, Re2
+TAL[96] introduces a reversible module that clears intermediate
+activations during training, thereby mitigating the memory foot-
+print bottleneck. The combination of backbone ﬁnetuning and
+efﬁcient end-to-end training strikes a favorable balance between
+computational burden and feature representation, leading to
+performance gains in the aforementioned works.
+Characteristic Summary and Analyses: Table IV presents a
+comprehensive summary of existing temporal action localiza-
+tion methods, revealing three prominent trends. (1) The evolu-
+tion of video recognition backbones has signiﬁcantly beneﬁted
+action localization research. In the deep learning era, represen-
+tative backbones such as the C3D network [69], two-stream
+network [2], [128], [142], and I3D network [70] have played
+pivotal roles. Recent works have explored methods to access
+more representative features, either through ﬁnetuning the I3D
+network or adopting the newly proposed Slowfast network [71].
+Besides capturing appearance features from video frames, most
+approaches rely on optical ﬂow to describe motion charac-
+teristics. Additionally, pre-extraction of features is a common
+practice, streamlining the training and inference processes. (2)
+The sliding window strategy has proven to be an effective
+approach for handling untrimmed videos. Earlier works[1], [98],
+[118] employed multiple sliding windows with different tempo-
+ral scales to segment untrimmed videos. However, subsequent
+research [33], [34], [36] demonstrated that a single-scale sliding
+window is often sufﬁcient to localize action instances accurately.
+Furthermore, Chao et al. [14] retained the original length of
+each video, while Zhao et al. [41] scaled untrimmed videos
+to a ﬁxed length for consistency. (3) While there have been
+signiﬁcant performance gains on the THUMOS14 benchmark,
+the improvement on ActivityNet v1.3 has been comparatively
+2178 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+TABLE IV
+SUMMARY OF REMARKABLE CHARACTERISTICS OF SUPERVISED TEMPORAL ACTION LOCALIZA TIONMETHODS
+slow. This observation may be attributed to two key factors.
+First, ActivityNet v1.3 employs a stricter evaluation metric, the
+average mAP under threshold [0.5:0.05:0.95], posing a higher
+bar for achieving top performance. In contrast, THUMOS14
+uses the relatively looser metric, mAP under threshold 0.5. Sec-
+ond, ActivityNet v1.3 presents greater difﬁculty due to a higher
+number of categories and larger variation in action durations
+compared to THUMOS14.
+D. Further Discussions and Promising Directions
+Temporal action localization is a foundational task in in-
+telligent video understanding, and it is essential to develop
+theoretical research while considering practical applications.
+In recent work, Damen et al. [143] introduced a method for
+localizing action instances in egocentric videos, which ﬁnds
+applications in diverse scenarios such as robotics and industrial
+manufacturing. However, algorithms designed for egocentric
+videos must address challenges related to the presence of severe
+noise in optical ﬂow inputs. The camera’s movements inevitably
+introduce signiﬁcant background motions, necessitating robust
+algorithms to handle such complexities. Another practical area
+of interest is online action detection [144], [145]. This topic
+is particularly relevant in applications like smart surveillance,
+where algorithms are expected to trigger alarms promptly when
+an anomaly event starts, rather than merely localizing it in an
+ofﬂine manner. To achieve swift detection, algorithms need to
+extract sensitive boundary features from noisy input data and
+strike a balance between computational efﬁciency and feature
+representation capability. In conclusion, the temporal action
+localization community should not only focus on theoretical
+advancements but also keep in mind the real-world applications
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2179
+Fig. 5. Chronology for weakly supervised temporal action localization research.
+where the developed methods will be deployed. Addressing
+the challenges posed by speciﬁc scenarios, such as egocentric
+videos and online action detection, will lead to more practical
+and effective solutions.
+Both egocentric action localization and online action local-
+ization present signiﬁcant challenges, but recent progress in
+related areas can serve as valuable inspiration for further ex-
+plorations. For instance, Wang et al. [73] have demonstrated
+promising results by employing only RGB frames to construct
+an end-to-end temporal action localization baseline. This ac-
+complishment highlights two key points: (1) With appropriate
+designs, a sequence of RGB frames can effectively capture mo-
+tion characteristics, eliminating the need for optical ﬂow inputs.
+(2) The end-to-end learning pipeline proves to be capable of
+dynamically extracting representative features without imposing
+excessive computational burdens.
+In conclusion, we encourage future research to continue ad-
+vancing the ﬁeld of temporal action localization with a prac-
+tical mindset. This entails addressing speciﬁc challenges such
+as localizing actions in egocentric videos and enabling online
+action detection. By considering real-world applications and
+developing effective solutions, the temporal action localization
+community can make valuable contributions to the ﬁeld of
+intelligent video understanding.
+IV . WEAKL YSUPERVISED TEMPORAL ACTION LOCALIZA TION
+In the deep learning era, weakly supervised temporal ac-
+tion localization research can be categorized into two groups:
+pre-classiﬁcation research and post-classiﬁcation research. Pre-
+classiﬁcation involves performing classiﬁcation on snippet-level
+features, while post-classiﬁcation is based on aggregated fea-
+tures. Researchers have proposed various strategies to enhance
+feature extraction, attention, and classiﬁers. In this section,
+we analyze the characteristics of existing works and provide
+suggestions for future research directions.
+Fig. 5 presents a concise chronology of weakly supervised
+temporal action localization methods. UntrimmedNet [2] is an
+early pioneering work that employs effective procedures such
+as predicting video-level classiﬁcation scores using top- k mean
+strategy and detecting actions via thresholding. Subsequently,
+W-TALC [19] extends the pipeline to an inter-video manner,
+considering two videos from the same category to learn repre-
+sentative features. Nguyen et al. [20] address the critical inﬂu-
+ence of background segments on weakly supervised learning,
+which was overlooked by previous research, and propose the
+background modeling pipeline. EM-MIL [21] identiﬁes that
+early fusion and late fusion, utilized in previous works, do
+not fully explore the complementarity between appearance and
+motion features, and they propose cross-branch supervision
+to mine this complementarity. More recently, Liu et al. [151]
+view background segments as blessings rather than curses, in-
+tegrating the causal analysis pipeline to enhance localization
+accuracy.
+A. Classiﬁcation Mechanism
+Under the weakly supervised setting, the learning process is
+constrained by the availability of only video-level classiﬁcation
+labels, while precise localization of action instances necessitates
+frame-level predictions. The association between frame-level
+predictions and video-level labels is not unique, presenting
+challenges to weakly supervised learning algorithms.
+Pre-Classiﬁcation: As depicted in Fig. 6(a), the pre-
+classiﬁcation pipeline begins by utilizing several temporal con-
+volutional layers to classify each frame. It then predicts the
+video-level classiﬁcation label by aggregating a series of frame-
+level scores, achieved through methods like weighted sum [2],
+[148], [149] or the top-k mean strategy [53], [59], [134].L e v e r -
+aging temporal convolutional operations allows this pipeline
+to generate discriminative local features and effectively avoid
+noise interference in background segments. However, the limited
+receptive ﬁeld of the temporal convolutional layers poses a
+challenge, as it restricts the pipeline’s ability to model long-term
+relationships. As a result, pre-classiﬁcation methods tend to
+identify the most discriminative action parts but often struggle to
+generate complete action instances, resulting in what is referred
+to as the “part domination problem.”
+2180 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+Fig. 6. Schematic diagram for (a) pre-classiﬁcation mechanism and (b) post-
+classiﬁcation mechanism, where both training and inference pipelines are shown.
+To alleviate the challenge of part domination, the research
+community has proposed various solutions, which can be clas-
+siﬁed into four groups: hiding discriminative parts, pseudo label
+training, learning multiple branches, and prior-based designs.
+Firstly, the “hide-and-seek” approach [57], along with its ex-
+tension [146], intentionally conceals discriminative action parts
+during training. This encourages the algorithm to explore incon-
+spicuous regions and generate complete action instances. Addi-
+tionally, some weakly supervised learning algorithms[21], [78],
+[79], [147] adopt a pseudo label training strategy. They generate
+pseudo labels for video frames and then train the localization
+network under a supervised manner. This approach assumes that
+multiple pseudo instances may contain complementary cues,
+leading to the identiﬁcation of complete action patterns. More-
+over, recognizing that diverse classiﬁcation scores might form
+complete action instances, Liu et al. [58] propose to learn mul-
+tiple branches in parallel, requiring the classiﬁcation responses
+to exhibit diversity. This approach has been further improved
+through adversarial training [59]. Furthermore, some methods
+leverage priors to enhance the localization performance. For in-
+stance, Lee et al. [150] propose that background features should
+have small magnitudes, while action features should have large
+magnitudes. Others decompose action instances into multiple
+subactions [23], [135], [186] to better exploit prior knowledge.
+Despite the progress made by the four pipelines in alleviating
+the part domination problem, the pre-classiﬁcation approach
+still encounters certain challenges. In the hiding discriminative
+parts pipeline, it remains uncertain when to cease the hiding
+process, as it is difﬁcult to ascertain if an action instance has been
+completely discovered. Additionally, the performance of the
+pseudo label training pipeline is often limited by the quality of
+generated pseudo action instances, which can affect the overall
+localization accuracy. Moreover, the learning multiple branches
+pipeline necessitates careful consideration of the trade-off be-
+tween the classiﬁcation accuracy of each branch and the diversity
+of responses among multiple branches. Lastly, the prior-based
+design pipeline is relatively inﬂexible and may require intricate
+designs to generalize effectively to new scenarios.
+Post-Classiﬁcation: As depicted in Fig. 6(b), the post-
+classiﬁcation pipeline adopts a two-step approach. Initially, it
+evaluates the relevance of each frame to the video-level classiﬁ-
+cation task and assigns an attention weight accordingly. Subse-
+quently, the vanilla video features are aggregated into a feature
+vector, which is utilized to train the classiﬁer and predict the
+video-level classiﬁcation score. During inference, the classiﬁer
+is applied to classify each frame and identify action instances, as
+illustrated in the lower part of Fig. 6. Since the classiﬁer learns
+from aggregated features, the algorithm can effectively capture
+global cues in untrimmed videos and associate multiple action
+instances within the video. However, the use of aggregated fea-
+tures may result in insufﬁcient modeling of local details, leading
+to challenges in distinguishing between boundary action frames
+(e.g., the end of a diving action) and neighboring background
+frames (e.g., water splashing after diving). This phenomenon is
+known as the action-context confusion challenge.
+To address the action-context confusion challenge, the re-
+search community has proposed three types of solutions: at-
+tention modeling, background modeling, and context modeling.
+The attention modeling pipeline [54], [132] focuses on gener-
+ating high-quality attention maps to effectively separate action
+frames from neighboring background frames. For instance, Y uan
+et al.[132] introduce a marginalized average aggregation module
+to suppress the response of discriminative regions, while Shi
+et al. [54] incorporate representability into the estimation of
+attention weights. On the other hand, the background modeling
+pipeline [20], [59], [148] emphasizes the importance of under-
+standing background information. Nguyen et al. [20] propose
+to estimate background attention by inverting action attention,
+followed by aggregating background features and predicting
+background-aware classiﬁcation scores. This strategy is further
+extended and reﬁned by subsequent works [59], [148]. Addi-
+tionally, the context modeling pipeline [55], [56] considers that
+foreground frames consist of both action frames and contextual
+frames, while background frames are the opposite of foreground
+frames. To distinguish between action and context, ACSNet[55]
+combines latent components and performs action-context clas-
+siﬁcation. Similarly, Liu et al. [56] learn explicit sub-spaces
+for action and context separately. Although the above pipelines
+have made progress in alleviating the action-context confusion,
+it remains a challenging issue, especially in scenarios where
+the algorithm has access to only video-level classiﬁcation labels
+during training. Further research and improvements are needed
+to fully address this challenge.
+B. Enhancement Mechanism
+In addition to the classiﬁcation mechanism, weakly super-
+vised temporal action localization methods can be categorized
+based on the enhancement mechanism. As shown in Table V,
+we analyze the enhancement mechanism from three aspects:
+enhanced classiﬁer, enhanced feature, and enhanced attention.
+Enhanced Classiﬁer: Because weakly supervised learning
+algorithms can only access video-level classiﬁcation labels, an
+enhanced classiﬁer is beneﬁcial for localizing action instances,
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2181
+TABLE V
+CA TEGORIZA TION OFEXISTING WEAKL YSUPERVISED TEMPORAL ACTION LOCALIZA TIONWORKS
+Fig. 7. Schematic diagram for (a) enhanced classiﬁer mechanism, (b) en-
+hanced feature mechanism and (c) enhanced attention mechanism.
+as shown in Fig. 7(a). Singh et al. [57] and Zhong et al. [146] re-
+move the most discriminative action parts, and the classiﬁer gets
+enhanced when highlighting other action parts. Lee et al. [134]
+and Nguyen et al. [20] employ the same classiﬁer to dispose
+of both foreground features and background features, where the
+classiﬁer gets enhanced via clearly distinguishing actions from
+backgrounds. AutoLoc [78] and CleanNet [147] ﬁrst generate
+pseudo action instances, then enhance the classiﬁer through
+training under a supervised manner. To sum up, the enhanced
+classiﬁer mechanism has made progress in solving both the
+discriminative part dominant problem and the action-context
+confusion problem. However, researchers should make speciﬁc
+designs according to the enhancement target, which constrains
+the generalization of this pipeline.
+Enhanced Feature: As most weakly supervised temporal ac-
+tion localization works rely on pre-extracted features, the feature
+enhancement pipeline aims to transform vanilla features into
+features suitable for action localization, as shown in Fig. 7(b).
+Some works [53], [55], [56], [80], [156] enhance features by
+learning similar representations for instances from the same
+category and keeping them distinct for instances from different
+categories. In other words, they pursue both intra-class similarity
+and inter-class discrepancy. For example, Huang et al. [156]
+learn prototypes for each category, while Liu et al. [55], [56]
+embed category features into distinct subspaces. Furthermore,
+some works transport features through several convolutional
+layers and directly impose constraints on features to achieve
+accurate action localization. For instance, they may focus on the
+magnitude of features [150] or the diversity of features [58].
+Later, [23], [135], [186] observed the diversity within each
+category and proposed to learn subaction representations for
+each category, resulting in a more elaborate feature enhancement
+approach. In summary, the feature enhancement pipeline can
+generate high-quality features by preserving intra-class simi-
+larity and inter-class discrepancy. However, it relies on priors
+and is sensitive to hyper-parameters, which should be taken into
+consideration during the design process.
+Enhanced Attention: The attention mechanism can guide the
+algorithm to focus on informative action parts while avoiding
+interference from background parts, as shown in Fig. 7(c).
+In action localization research, some works introduce addi-
+tional loss terms to learn reliable attention weights. For ex-
+ample, BANet [148] employs the action-guided attention loss,
+TSCN [133] utilizes the attention normalization loss, and
+DGAM [54] adopts a V AE module and calculates the reconstruc-
+tion loss. Moreover, some works dynamically adjust the atten-
+tion weights. For instance, Xu et al.[175] calculate class-variable
+2182 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+TABLE VI
+SUMMARY OF REMARKABLE CHARACTERISTICS OF WEAKL YSUPERVISED TEMPORAL ACTION LOCALIZA TIONMETHODS
+attention weights, while Y uan et al.[132] dynamically select re-
+sponses based on randomly sampled attention weights following
+a Bernoulli distribution. More recently, HAM-Net [149] utilizes
+three variants of the vanilla attention weight, namely semi-soft
+attention, soft attention, and hard attention, to enhance the at-
+tention weight. In general, determining attention weights can be
+seen as the simpliﬁcation of localizing action instances, where
+the algorithm focuses solely on estimating action boundaries
+and does not predict the action category. However, the attention
+mechanism should be equipped with a proper normalization
+strategy; otherwise, degenerated attention weights could lead
+to a drop in performance.
+C. Characteristics Analyses
+Table VI provides a summary of remarkable characteristics
+observed in representative temporal action localization methods.
+Notably, most works maintain consistent experimental setups,
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2183
+TABLE VII
+STA TISTICSABOUT THE SIZE OF EXISTING TEMPORAL ACTION
+LOCALIZA TIONDA TASETS
+facilitating fair comparisons among different algorithms. Re-
+garding feature representation, the majority of methods utilize
+the I3D network [70], pre-trained on the Kinetics 400 dataset, to
+extract features from untrimmed videos. This approach captures
+both appearance and motion features, which are essential for
+accurately depicting untrimmed videos. However, it is important
+to note that networks such as I3D and [2], initially trained for
+video recognition tasks, may not offer ﬂexible feature represen-
+tations perfectly suited to the temporal action localization task
+due to the domain gap. In terms of supervision, most works
+solely rely on video-level classiﬁcation labels. Some methods
+have explored incorporating additional supervision signals [20],
+[53] or pre-training the network with extra data from the UCF
+101 dataset [191] [57] , [59], [189]. However, it is noteworthy
+that learning from video-level classiﬁcation labels remains the
+dominant trend and achieves superior performance. Similar
+to supervised research, the performance on the THUMOS14
+benchmark has shown rapid improvement, while ActivityNet
+v1.2 and ActivityNet v1.3 present greater challenges and receive
+slower performance gains.
+D. Further Discussions and Promising Directions
+As discussed in the above sections, existing weakly temporal
+action localization research has achieved impressive progress.
+However, the community still requires continuous development
+in the following aspects: the size of the benchmark and the
+supervision label.
+From Small Benchmark to Large Benchmark: Because a
+majority of temporal action localization algorithms are veriﬁed
+on THUMOS14 [192] and ActivityNet [131] benchmarks, cur-
+rent research is usually subject to two limitations: the risk of
+overﬁtting and the insufﬁcient ability to extend. As shown in
+Table VII, the early benchmarks THUMOS14 and ActivityNet
+v1.3 contains 413 and 19,994 videos, respectively, while recently
+proposed benchmarks HACS [194] and Y ouTube-8M [196]
+contain 50,000 and 46,000 videos, respectively. In part because
+of overﬁtting, a classical method SSN [105] achieves 28.28%
+on ActivityNet v1.3, but the performance drops to 18.97%
+on HACS, although these two datasets share the same action
+categories. In addition, because existing algorithms are trained
+on ﬁxed categories, the algorithm can accurately discover ac-
+tion instances belonging to categories in the benchmark but is
+incompetent when tackling newly emerged action categories. To
+alleviate this issue, Zhang et al. [197] have introduced zero-shot
+learning [198] to temporal action localization, but there ex-
+hibits huge performance gap with existing algorithms[17], [44],
+[52].
+To summarize, we propose further research to benchmark the
+proposed methods on both large-scale datasets [194], [196],
+and datasets [193], [195] featuring ﬁne-grained annotations.
+Regarding large-scale datasets, their utilization offers multiple
+advantages. Firstly, a large-scale benchmark provides an ample
+training data source that holds the potential to unlock the algo-
+rithm’s full capabilities. Secondly, it poses new challenges due
+to the considerable computational burden and the diversity of
+instances within the dataset. As for ﬁne-grained action analysis,
+the datasets FineAction [193] and FineGym v1.0 [195] have
+emerged as signiﬁcant contributors to this research direction.
+In contrast to traditional coarse-level action annotations, ﬁne-
+grained action analysis allows for atomic analyses, which are
+highly applicable in real-world scenarios. Moreover, it opens
+promising avenues for weakly-supervised learning in the context
+of ﬁne-grained actions, as exempliﬁed by the pioneering work
+of Li et al. [199].
+Moreover, action localization algorithms should transcend
+conventional benchmarks, address novel categories, and ex-
+cel in the challenging task of temporal action localization in
+unconstrained real-world settings. Recently, Chen et al. [200]
+integrated the weakly-supervised setting with open-set action
+localization, introducing a more formidable task. The recent
+advancements in large foundational models [201], [202] have
+presented opportunities for signiﬁcant progress in multimodal
+action localization tasks. These tasks can now leverage aligned
+vision-language features and factual knowledge encapsulated
+within the foundational models.
+From Fixed Supervision to Flexible Supervision: Supervised
+temporal action localization necessitates accurately annotated
+action boundaries and classiﬁcation labels. Conversely, weakly
+supervised algorithms remove precise annotations and learn di-
+rectly from video-level classiﬁcation labels. Ji et al.[203] allevi-
+ate the challenge of controlling annotation costs by proposing the
+semi-supervised action localization task. The primary hurdle in
+the semi-supervised setting lies in effectively leveraging limited
+annotations. To this end, several approaches have been explored:
+KFC [204] applies perturbations on video features, SSTAP[205]
+integrates self-supervised learning, Shi et al. [206] design three
+levels of supervision (fully-, weakly-, and unsupervised set-
+tings), and SPOT [207] introduces a parallel architecture for
+localization and classiﬁcation. Apart from the semi-supervised
+setting, Kang et al. [208] developed the temporal action lo-
+calization task in an online setting, constraining the algorithm
+to process streaming videos without accessing future frames.
+Subsequently, Kim et al. [209] improved the online setting by
+integrating the anchor mechanism.
+More recently, Ma et al. [210] discovered that single-frame
+supervision yields performance gains comparable to weakly
+supervised methods but requires similar annotation costs. As
+a result, SF-Net [210] introduces the single-frame annotation to
+learn action patterns, which is developed by Y ang et al.[136] via
+switching point annotations to backgrounds. Although current
+2184 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+weakly supervised algorithms cannot achieve similar perfor-
+mance with their supervised counterparts, we think it is a promis-
+ing direction to continuously develop the weakly supervised
+algorithm. With the rapid increase of video data on the internet,
+further works could strive to continuously obtain training videos
+from the internet and learn from a large amount of data. If so, the
+weakly supervised learning algorithm would persistently make
+improvements by itself, and such continual improvement may
+lead to a breakthrough.
+In addition, the supervision signal should not be limited to
+instance- or video-level labels. For example, some works [211],
+[212] ﬁrst employ trimmed videos from video recognition
+benchmarks to learn action patterns, then localize action in-
+stances in untrimmed videos. Furthermore, the exploration of
+multiple modalities within video data is essential. For instance,
+Lee et al.[213] introduced audio cues to enhance action localiza-
+tion methods. POLO [214] takes into account both appearance
+and motion modalities for action localization. Additionally, the
+localization of action instances based on language descrip-
+tions [215], often referred to as temporal grounding[216], [217],
+has been extensively studied. Moreover, Bao et al.[218] propose
+the open-set temporal action localization task. In this task, the
+algorithm is trained with ﬁxed action categories but is expected
+to accurately detect unknown actions when handling videos
+containing previously unseen categories. Given the abundance of
+supervision signals and multimodal video data, we recommend
+that future research focuses on building a ﬂexible learning frame-
+work capable of exploring various supervisions and effectively
+leveraging the complementarity among multiple modalities.
+V. F UTURE DIRECTIONS
+A. Improving Conﬁdence Score Estimation
+As extensively reviewed above, the temporal action local-
+ization task has been extensively investigated through a series
+of seminal works [1], [2], [13], [14], [15], [16], [17], [19],
+[20], [21], [151]. Overall, the process of localizing an action
+instance involves three key subtasks: precisely identifying action
+boundaries, accurately classifying the action category, and ap-
+propriately estimating the conﬁdence score. While past research
+has primarily focused on the ﬁrst two subtasks, the signiﬁcance
+of the conﬁdence score has not received sufﬁcient attention,
+leading to a performance bottleneck in the existing approaches.
+To identify the performance bottleneck of current methods, a
+natural approach is to employ the diagnosing tool DETAD[219]
+and conduct an analysis of the localization results. DETAD[219]
+categorizes false positive predictions into ﬁve categories: Dou-
+ble Detection Error, Wrong Label Error, Localization Error,
+Confusion Error, and Background Error. However, the last four
+categories only consider the boundary and classiﬁcation quality,
+neglecting the inﬂuence of the conﬁdence score. Furthermore,
+the Double Detection Error only indicates the presence of an-
+other true positive prediction with a higher conﬁdence score,
+without analyzing conﬁdence scores among multiple predic-
+tions. As our objective is to analyze the impact of the conﬁdence
+score, a factor that has been overlooked for a considerable period,
+we conduct experiments under an oracle setting and analyze
+both supervised methods [16], [33], [44], and weakly supervised
+methods [54], [134], [150], as illustrated in Table IX.
+Given the localization results of each method on the THU-
+MOS14 dataset, we ﬁrst evaluate the quality of action proposals.
+Speciﬁcally, for each ground truth instance, we measure the
+Intersection over Union (IoU) between the ground truth instance
+and any predicted instance. If the predicted instance has a high
+IoU value (i.e., IoU > 0.5) with the ground truth instance, we
+consider this ground truth instance as correctly matched. As
+demonstrated in Table VIII, existing methods exhibit a high
+match rate, with AFSD [44] achieving a ground truth match
+rate of 92.68%. Next, as shown in Table IX, we reﬁne the
+classiﬁcation label by assigning each prediction the label of
+the closest ground truth instance. However, this reﬁnement only
+results in limited performance gains, typically less than 1.0%,
+which suggests that the classiﬁcation task is not the primary
+performance bottleneck. On the other hand, if we reﬁne the
+conﬁdence score based on the IoU between a predicted instance
+and its closest ground truth, we observe substantial performance
+gains. For instance, the supervised method AFSD [44] achieves
+a gain of 32.99% and an mAP of 88.47%. Even the weakly
+supervised method UM [150] achieves an mAP of 61.28% with
+the proposed reﬁnement. This notable improvement indicates
+that the main performance bottleneck lies in the accurate esti-
+mation of the conﬁdence score. In summary, our comprehensive
+analysis demonstrates that the conﬁdence score estimation sig-
+niﬁcantly inﬂuences the overall performance of the temporal
+action localization methods, and addressing this aspect can lead
+to considerable performance gains.
+B. Pursuing High-Quality Feature Representation
+Discriminative features play a crucial role in assisting action
+localization algorithms by distinguishing action frames from
+contextual backgrounds and enabling differentiation among
+multiple action categories. Moreover, representative features
+help reduce intra-class diversity and increase inter-class differ-
+ences, further enhancing the algorithm’s performance. However,
+a signiﬁcant number of existing methods rely on off-the-shelf
+video recognition backbones [69], [70], [71] for feature extrac-
+tion from untrimmed videos. Unfortunately, these backbones
+are not ﬂexible enough due to their inherent task bias. To pursue
+the extraction of high-quality features, we propose exploring
+unsupervised visual representation learning [220], [221] as a
+promising direction, particularly in the context of video-related
+tasks [222], [223], [224]. By leveraging unsupervised learning,
+these specialized backbones can alleviate the task bias and
+produce features that encapsulate both intra-class similarity
+and inter-class separability. This approach holds great potential
+for improving the overall performance of action localization
+algorithms by providing more discriminative and representative
+features.
+C. Preserving Privacy
+In the data-driven learning paradigm, the performance of deep
+learning algorithms is often directly inﬂuenced by the quantity of
+available training data. Consequently, a larger dataset with more
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2185
+TABLE VIII
+MAT C HRAT E O FEXISTING ACTION LOCALIZA TIONMETHODS ON THUMOS14 DATA S E T
+TABLE IX
+ANAL YSIS OFEXISTING ACTION LOCALIZA TIONMETHODS ON THUMOS14 DATA S E T
+action instances can signiﬁcantly enhance the temporal action
+localization algorithm’s performance. However, the abundance
+of data also raises concerns about privacy and potential mis-
+use of personal information [225]. Without appropriate privacy
+preservation measures, the action localization system may in-
+advertently expose sensitive information for illicit purposes. To
+address this issue and effectively preserve privacy, two promis-
+ing strategies have emerged: secure multi-party learning [226],
+[227] and federated learning [228]. Secure multi-party learning
+utilizes a peer-to-peer pipeline, where multiple parties collab-
+oratively train the model without sharing their individual data
+directly. On the other hand, federated learning adopts a client-
+server pipeline, where clients with private data locally train their
+models and only share model updates with the central server.
+Both approaches are designed to ensure data privacy while
+allowing the algorithm to leverage information from multiple
+sources. It is important to note that privacy preservation should
+be considered not only during the training phase but also during
+the inference phase. Proper precautions and secure mechanisms
+must be in place to guarantee that personal information remains
+protected throughout the entire action localization process.
+D. Measuring Video Information
+In theory, a fundamental challenge in accurately localizing
+action instances from untrimmed videos lies in the precise
+extraction of meaningful information from the video content. If
+we can extend traditional information theory [229] to the video
+understanding domain and establish effective rules for measur-
+ing video information, it could lead to signiﬁcant breakthroughs
+in temporal action localization research. For instance, a series
+of video frames containing the desired information could form
+a coherent action instance. Moreover, with such a framework, it
+might be possible to quantitatively assess the impact of each
+video processing step on action localization results, thereby
+providing valuable insights for advancing research in intelligent
+video understanding.
+VI. C ONCLUSION
+This paper presents a comprehensive survey of temporal
+action localization methods in the deep learning era. For
+supervised action localization, we thoroughly review the anchor
+mechanism and provide a detailed discussion of the strengths and
+weaknesses of one-stage, two-stage, and anchor-free pipelines.
+Furthermore, we summarize existing works in the classiﬁca-
+tion mechanism, encompassing both the frame classiﬁcation
+and proposal classiﬁcation pipelines, offering an in-depth and
+novel overview of supervised action localization methods. In
+the domain of weakly supervised temporal action localization,
+we categorize existing works into pre-classiﬁcation and post-
+classiﬁcation pipelines, carefully examining their distinct char-
+acteristics. Additionally, we conduct a comprehensive analysis
+of the classiﬁer, feature, and attention weight, leading to a novel
+categorization of weakly supervised methods. The taxonomy we
+propose enhances the understanding of temporal action local-
+ization research and facilitates comparisons between different
+approaches.
+Moreover, this survey uncovers the performance bottleneck
+related to conﬁdence estimation. Looking ahead, we suggest
+several promising research directions. One such direction in-
+volves the precise quantiﬁcation of information within a video
+to aid the development of intelligent video understanding. Ad-
+ditionally, we emphasize the signiﬁcance of preserving privacy
+in action localization systems, proposing secure multi-party
+learning and federated learning as viable strategies. In conclu-
+sion, this survey contributes to the ﬁeld by offering a com-
+prehensive overview of temporal action localization methods
+and their strengths and limitations. The suggested future re-
+search directions serve as valuable insights for researchers in the
+community.
+REFERENCES
+[1] Z. Shou, D. Wang, and S.-F. Chang, “Temporal action localization in
+untrimmed videos via multi-stage CNNs,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2016, pp. 1049–1058.
+[2] L. Wang, Y . Xiong, D. Lin, and L. V an Gool, “UntrimmedNets for weakly
+supervised action recognition and detection,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2017, pp. 4325–4334.
+[3] A. Tejero-de Pablos, Y . Nakashima, T. Sato, N. Y okoya, M. Linna, and
+E. Rahtu, “Summarization of user-generated sports video by using deep
+action recognition features,” IEEE Trans. Multimedia , vol. 20, no. 8,
+pp. 2000–2011, Aug. 2018.
+[4] C. Loukas, “Video content analysis of surgical procedures,” Surg. En-
+doscopy, vol. 32, no. 2, pp. 553–568, 2018.
+2186 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+[5] Y . Jiao, Z. Li, S. Huang, X. Y ang, B. Liu, and T. Zhang, “Three-
+dimensional attention-based deep ranking model for video highlight
+detection,” IEEE Trans. Multimedia , vol. 20, no. 10, pp. 2693–2705,
+Oct. 2018.
+[6] B. Zhao, X. Li, and X. Lu, “Property-constrained dual learning for video
+summarization,” IEEE Trans. Neural Netw. Learn. Syst., vol. 31, no. 10,
+pp. 3989–4000, Oct. 2020.
+[7] X. Li and B. Zhao, “Video distillation,” SCIENTIA SINICA Informationis,
+vol. 51, pp. 695–734, 2021.
+[8] J. Lee and S. Abu-El-Haija, “Large-scale content-only video recommen-
+dation,” in Proc. Int. Conf. Comput. Vis. Workshops, 2017, pp. 987–995.
+[9] X. Li and Z. Zhao, “Pixel level semantic understanding: From clas-
+siﬁcation to regression,” SCIENTIA SINICA Informationis , vol. 51,
+pp. 521–564, 2021.
+[10] K.-E. Ko and K.-B. Sim, “Deep convolutional framework for abnormal
+behavior detection in a smart surveillance system,” Eng. Appl. Artif.
+Intell., vol. 67, pp. 226–234, 2018.
+[11] K. Y un, Y . Kwon, S. Oh, J. Moon, and J. Park, “Vision-based garbage
+dumping action detection for real-world surveillance platform,” ETRI J.,
+vol. 41, no. 4, pp. 494–505, 2019.
+[12] A. Vignolo, N. Noceti, F. Rea, A. Sciutti, F. Odone, and G. Sandini, “De-
+tecting biological motion for human–robot interaction: A link between
+perception and action,” Front. Robot. AI, vol. 4, 2017, Art. no. 14.
+[13] Z. Y . Jiyang Gao and R. Nevatia, “Cascaded boundary regression
+for temporal action detection,” in Proc. Brit. Mach. Vis. Conf. , 2017,
+pp. 52.1–52.11.
+[14] Y .-W. Chao, S. Vijayanarasimhan, B. Seybold, D. A. Ross, J. Deng, and
+R. Sukthankar, “Rethinking the faster R-CNN architecture for temporal
+action localization,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit., 2018, pp. 1130–1139.
+[15] R. Zeng et al., “Graph convolutional networks for temporal action local-
+ization,” in Proc. Int. Conf. Comput. Vis., 2019, pp. 7094–7103.
+[16] M. Xu, C. Zhao, D. S. Rojas, A. Thabet, and B. Ghanem, “G-TAD:
+Sub-graph localization for temporal action detection,” inProc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2020, pp. 10 156–10 165.
+[17] X. Liu, Y . Hu, S. Bai, F. Ding, X. Bai, and P . H. Torr, “Multi-shot temporal
+event localization: A benchmark,” inProc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2021, pp. 12 596–12 606.
+[18] C.-L. Zhang, J. Wu, and Y . Li, “ActionFormer: Localizing moments of
+actions with transformers,” in Proc. Eur . Conf. Comput. Vis., Springer,
+2022, pp. 492–510.
+[19] S. Paul, S. Roy, and A. K. Roy-Chowdhury, “W-TALC: Weakly-
+supervised temporal activity localization and classiﬁcation,” inProc. Eur .
+Conf. Comput. Vis., 2018, pp. 563–579.
+[20] P . X. Nguyen, D. Ramanan, and C. C. Fowlkes, “Weakly-supervised ac-
+tion localization with background modeling,” inProc. Int. Conf. Comput.
+Vis., 2019, pp. 5502–5511.
+[21] Z. Luo et al., “Weakly-supervised action localization with expectation-
+maximization multi-instance learning,” in Proc. Eur . Conf. Comput. Vis.,
+2020, pp. 729–745.
+[22] F.-T. Hong, J.-C. Feng, D. Xu, Y . Shan, and W.-S. Zheng, “Cross-modal
+consensus network for weakly supervised temporal action localization,”
+in Proc. ACM Int. Conf. Multimedia , 2021, pp. 1591–1599.
+[23] L. Huang, Y . Huang, W. Ouyang, and L. Wang, “Modeling sub-actions
+for weakly supervised temporal action localization,” IEEE Trans. Image
+Process., vol. 30, pp. 5154–5167, 2021.
+[24] D. Shi, Y . Zhong, Q. Cao, L. Ma, J. Li, and D. Tao, “TriDet: Temporal
+action detection with relative boundary modeling,” in Proc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2023, pp. 18 857–18 866.
+[25] M. N. Rizve et al., “PivoTAL: Prior-driven supervision for weakly-
+supervised temporal action localization,” inProc. IEEE/CVF Conf. Com-
+put. Vis. Pattern Recognit., 2023, pp. 22 992–23 002.
+[26] H. Xia and Y . Zhan, “A survey on temporal action localization,” IEEE
+Access, vol. 8, pp. 70 477–70 487, 2020.
+[27] E. V ahdani and Y . Tian, “Deep learning-based action detection in
+untrimmed videos: A survey,” IEEE Trans. Pattern Anal. Mach. Intell. ,
+vol. 45, no. 4, pp. 4302–4320, Apr. 2023.
+[28] A. Baraka and M. H. Mohd Noor, “Weakly-supervised temporal action
+localization: A survey,” Neural Comput. Appl. , vol. 34, pp. 8479–8499,
+2022.
+[29] R. Poppe, “A survey on vision-based human action recognition,” Image
+Vis. Comput., vol. 28, no. 6, pp. 976–990, 2010.
+[30] S. Herath, M. Harandi, and F. Porikli, “Going deeper into action recog-
+nition: A survey,” Image Vis. Comput., vol. 60, pp. 4–21, 2017.
+[31] Y . Kong and Y . Fu, “Human action recognition and prediction: A survey,”
+Int. J. Comput. Vis., vol. 130, no. 5, pp. 1366–1401, 2022.
+[32] S. Y eung, O. Russakovsky, G. Mori, and L. Fei-Fei, “End-to-end learning
+of action detection from frame glimpses in videos,” in Proc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2016, pp. 2678–2687.
+[33] T. Lin, X. Zhao, and Z. Shou, “Single shot temporal action detection,” in
+Proc. ACM Int. Conf. Multimedia , 2017, pp. 988–996.
+[34] Z. Shou, J. Chan, A. Zareian, K. Miyazawa, and S.-F. Chang, “CDC:
+Convolutional-de-convolutional networks for precise temporal action
+localization in untrimmed videos,” in Proc. IEEE/CVF Conf. Comput.
+Vis. Pattern Recognit., 2017, pp. 1417–1426.
+[35] S. Buch, V . Escorcia, B. Ghanem, L. Fei-Fei, and J. C. Niebles, “End-
+to-end, single-stream temporal action detection in untrimmed videos,” in
+Proc. Brit. Mach. Vis. Conf., 2017, Art. no. 7.
+[36] H. Xu, A. Das, and K. Saenko, “R-C3D: Region convolutional 3D
+network for temporal activity detection,” inProc. IEEE Int. Conf. Comput.
+Vis., 2017, pp. 5794–5803.
+[37] K. Y ang, P . Qiao, D. Li, S. Lv, and Y . Dou, “Exploring temporal preser-
+vation networks for precise temporal action localization,” in Proc. Conf.
+Assoc. Advance. Artif. Intell. , 2018, pp. 7477–7484.
+[38] T. Lin, X. Zhao, H. Su, C. Wang, and M. Y ang, “BSN: Boundary sensitive
+network for temporal action proposal generation,” in Proc. Eur . Conf.
+Comput. Vis., 2018, pp. 3–19.
+[39] F. Long, T. Y ao, Z. Qiu, X. Tian, J. Luo, and T. Mei, “Gaussian temporal
+awareness networks for action localization,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2019, pp. 344–353.
+[40] A. Piergiovanni and M. S. Ryoo, “Temporal Gaussian mixture layer for
+videos,” in Proc. Mach. Learn. Res., vol. 97, pp. 5152–5161, 2019.
+[41] P . Zhao, L. Xie, C. Ju, Y . Zhang, Y . Wang, and Q. Tian, “Bottom-up
+temporal action localization with mutual regularization,” in Proc. Eur .
+Conf. Comput. Vis., 2020, pp. 539–555.
+[42] T. Lin, X. Liu, X. Li, E. Ding, and S. Wen, “BMN: Boundary-matching
+network for temporal action proposal generation,” in Proc. IEEE/CVF
+Int. Conf. Comput. Vis., 2019, pp. 3889–3898.
+[43] J. Li, X. Liu, Z. Zong, W. Zhao, M. Zhang, and J. Song, “Graph attention
+based proposal 3D convnets for action detection,” in Proc. Conf. Assoc.
+Advance. Artif. Intell., 2020, pp. 4626–4633.
+[44] C. Lin et al., “Learning salient boundary feature for anchor-free temporal
+action localization,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit., 2021, pp. 3320–3329.
+[45] R. Zeng et al., “Graph convolutional module for temporal action localiza-
+tion in videos,” IEEE Trans. Pattern Anal. Mach. Intell., vol. 44, no. 10,
+pp. 6209–6223, Oct. 2022.
+[46] D. Sridhar, N. Quader, S. Muralidharan, Y . Li, P . Dai, and J. Lu, “Class
+semantics-based attention for action detection,” in Proc. Int. Conf. Com-
+put. Vis., 2021, pp. 13 739–13 748.
+[47] F. Cheng and G. Bertasius, “TallFormer: Temporal action localization
+with a long-memory transformer,” in Proc. Eur . Conf. Comput. Vis. ,
+Springer, 2022, pp. 503–521.
+[48] L. Y ang, J. Han, T. Zhao, N. Liu, and D. Zhang, “Structured attention
+composition for temporal action localization,” IEEE Trans. Image Pro-
+cess., early access, Jun. 13, 2022, doi: 10.1109/TIP .2022.3180925.
+[49] Z. Zhu, L. Wang, W. Tang, N. Zheng, and G. Hua, “ContextLoc++:
+A uniﬁed context model for temporal action localization,” IEEE
+Trans. Pattern Anal. Mach. Intell. , vol. 45, no. 8, pp. 9504–9519,
+Aug. 2023.
+[50] Q. Liu and Z. Wang, “Progressive boundary reﬁnement network for
+temporal action detection,” in Proc. Conf. Assoc. Advance. Artif. Intell. ,
+2020, pp. 11 612–11 619.
+[51] Y . Liu, L. Ma, Y . Zhang, W. Liu, and S.-F. Chang, “Multi-granularity gen-
+erator for temporal action proposal,” in Proc. IEEE/CVF Conf. Comput.
+Vis. Pattern Recognit., 2019, pp. 3604–3613.
+[52] Z. Qing et al., “Temporal context aggregation network for temporal action
+proposal reﬁnement,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit., 2021, pp. 485–494.
+[53] S. Narayan, H. Cholakkal, F. S. Khan, and L. Shao, “3C-Net: Category
+count and center loss for weakly-supervised action localization,” inProc.
+Int. Conf. Comput. Vis., 2019, pp. 8679–8687.
+[54] B. Shi, Q. Dai, Y . Mu, and J. Wang, “Weakly-supervised action localiza-
+tion by generative attention modeling,” inProc. IEEE/CVF Conf. Comput.
+Vis. Pattern Recognit., 2020, pp. 1009–1019.
+[55] Z. Liu et al., “ACSNet: Action-context separation network for weakly
+supervised temporal action localization,” in Proc. Conf. Assoc. Advance.
+Artif. Intell., 2021, pp. 2233–2241.
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2187
+[56] Z. Liu, L. Wang, J. Y uan, N. Zheng, and G. Hua, “Weakly supervised
+temporal action localization through learning explicit subspaces for ac-
+tion and context,” in Proc. Conf. Assoc. Advance. Artif. Intell. , 2021,
+pp. 2242–2250.
+[57] K. K. Singh and Y . J. Lee, “Hide-and-seek: Forcing a network to be
+meticulous for weakly-supervised object and action localization,” in
+Proc. IEEE Int. Conf. Comput. Vis. , 2017, pp. 3544–3553.
+[58] D. Liu, T. Jiang, and Y . Wang, “Completeness modeling and context
+separation for weakly supervised temporal action localization,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2019, pp. 1298–1307.
+[59] K. Min and J. J. Corso, “Adversarial background-aware loss for weakly-
+supervised temporal activity localization,” in Proc. Eur . Conf. Comput.
+Vis., 2020, pp. 283–299.
+[60] T. Zhao, J. Han, L. Y ang, B. Wang, and D. Zhang, “SODA: Weakly
+supervised temporal action localization based on astute background
+response and self-distillation learning,” Int. J. Comput. Vis. , vol. 129,
+pp. 2474–2498, 2021.
+[61] L. Zelnik-Manor and M. Irani, “Event-based analysis of video,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2001, pp. II–II.
+[62] L. Gorelick, M. Blank, E. Shechtman, M. Irani, and R. Basri, “Actions
+as space-time shapes,” IEEE Trans. Pattern Anal. Mach. Intell. , vol. 29,
+no. 12, pp. 2247–2253, Dec. 2007.
+[63] I. Laptev, M. Marszalek, C. Schmid, and B. Rozenfeld, “Learning realistic
+human actions from movies,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2008, pp. 1–8.
+[64] O. Duchenne, I. Laptev, J. Sivic, F. Bach, and J. Ponce, “Automatic
+annotation of human actions in video,” in Proc. Int. Conf. Comput. Vis. ,
+2009, pp. 1491–1498.
+[65] W. Brendel and S. Todorovic, “Learning spatiotemporal graphs of human
+activities,” in Proc. Int. Conf. Comput. Vis., 2011, pp. 778–785.
+[66] K. Tang, L. Fei-Fei, and D. Koller, “Learning latent temporal structure
+for complex event detection,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2012, pp. 1250–1257.
+[67] A. Krizhevsky, I. Sutskever, and G. E. Hinton, “ImageNet classiﬁcation
+with deep convolutional neural networks,” in Proc. Int. Conf. Neural Inf.
+Process. Syst., 2012, pp. 1097–1105.
+[68] K. Simonyan and A. Zisserman, “V ery deep convolutional networks for
+large-scale image recognition,” in Proc. Int. Conf. Learn. Representa-
+tions, 2015.
+[69] D. Tran, L. Bourdev, R. Fergus, L. Torresani, and M. Paluri, “Learning
+spatiotemporal features with 3D convolutional networks,” in Proc. Int.
+Conf. Comput. Vis., 2015, pp. 4489–4497.
+[70] J. Carreira and A. Zisserman, “Quo vadis, action recognition? A new
+model and the kinetics dataset,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2017, pp. 6299–6308.
+[71] C. Feichtenhofer, H. Fan, J. Malik, and K. He, “Slowfast networks for
+video recognition,” inProc. Int. Conf. Comput. Vis., 2019, pp. 6202–6211.
+[72] Y . Huang, Q. Dai, and Y . Lu, “Decoupling localization and classiﬁcation
+in single shot temporal action detection,” in Proc. IEEE Int. Conf.
+Multimedia Expo, 2019, pp. 1288–1293.
+[73] C. Wang, H. Cai, Y . Zou, and Y . Xiong, “RGB stream is enough for
+temporal action detection,” 2021, arXiv:2107.04362.
+[74] H. Xu, A. Das, and K. Saenko, “Two-stream region convolutional 3D
+network for temporal activity detection,” IEEE Trans. Pattern Anal.
+Mach. Intell., vol. 41, no. 10, pp. 2319–2332, Oct. 2019.
+[75] L. Li, T. Kong, F. Sun, and H. Liu, “Deep point-wise prediction for
+action temporal proposal,” in Proc. Int. Conf. Neural Inf. Process., 2019,
+pp. 475–487.
+[76] Y . Tang, C. Niu, M. Dong, S. Ren, and J. Liang, “AFO-TAD: Anchor-
+free one-stage detector for temporal action detection,” 2019, arXiv:
+1910.08250.
+[77] L. Y ang, H. Peng, D. Zhang, J. Fu, and J. Han, “Revisiting anchor mech-
+anisms for temporal action localization,” IEEE Trans. Image Process. ,
+vol. 29, pp. 8535–8548, 2020.
+[78] Z. Shou, H. Gao, L. Zhang, K. Miyazawa, and S.-F. Chang, “AutoLoc:
+Weakly-supervised temporal action localization in untrimmed videos,”
+in Proc. Eur . Conf. Comput. Vis., 2018, pp. 154–171.
+[79] C. Zhang et al., “Adversarial seeded sequence growing for weakly-
+supervised temporal action localization,” in Proc. ACM Int. Conf. Multi-
+media, 2019, pp. 738–746.
+[80] C. Zhang, M. Cao, D. Y ang, J. Chen, and Y . Zou, “CoLA: Weakly-
+supervised temporal action localization with snippet contrastive learn-
+ing,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2021,
+pp. 16 010–16 019.
+[81] P . Nguyen, T. Liu, G. Prasad, and B. Han, “Weakly supervised action
+localization by sparse temporal pooling network,” in Proc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2018, pp. 6752–6761.
+[82] W. Y ang, T. Zhang, Z. Mao, Y . Zhanga, Q. Tian, and F. Wu, “Multi-scale
+structure-aware network for weakly supervised temporal action detec-
+tion,” IEEE Trans. Image Process., vol. 30, pp. 5848–5861, 2021.
+[83] Y . A. Farha and J. Gall, “MS-TCN: Multi-stage temporal convolutional
+network for action segmentation,” inProc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2019, pp. 3575–3584.
+[84] Y . Li et al., “CFAD: Coarse-to-ﬁne action detector for spatiotemporal
+action localization,” inProc. Eur . Conf. Comput. Vis., 2020, pp. 510–527.
+[85] J. Gao, Z. Y ang, K. Chen, C. Sun, and R. Nevatia, “TURN TAP: Temporal
+unit regression network for temporal action proposals,” inProc. IEEE Int.
+Conf. Comput. Vis., 2017, pp. 3628–3636.
+[86] M. A. Rahman and R. Laganière, “Mid-level fusion for end-to-end
+temporal activity detection in untrimmed video,” in Proc. Brit. Mach.
+Vis. Conf., 2020, pp. 1–13.
+[87] X. Li et al., “Deep concept-wise temporal convolutional networks for
+action localization,” inProc. ACM Int. Conf. Multimedia, 2020, pp. 4004–
+4012.
+[88] H. Y ang et al., “Temporal action proposal generation with back-
+ground constraint,” in Proc. Conf. Assoc. Advance. Artif. Intell. , 2022,
+pp. 3054–3062.
+[89] G. Chen, C. Zhang, and Y . Zou, “AFNet: Temporal locality-aware net-
+work with dual structure for accurate and fast action detection,” IEEE
+Trans. Multimedia, vol. 23, pp. 2672–2682, 2021.
+[90] Z. Zhu, W. Tang, L. Wang, N. Zheng, and G. Hua, “Enriching local and
+global contexts for temporal action localization,” inProc. IEEE Int. Conf.
+Comput. Vis., 2021, pp. 13 516–13 525.
+[91] H. Kang, H. Kim, J. An, M. Cho, and S. J. Kim, “Soft-landing strategy for
+alleviating the task discrepancy problem in temporal action localization
+tasks,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2023,
+pp. 6514–6523.
+[92] Q. Wang, Y . Zhang, Y . Zheng, and P . Pan, “RCL: Recurrent continuous
+localization for temporal action detection,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2022, pp. 13 566–13 575.
+[93] R. Ning, C. Zhang, and Y . Zou, “SRF-Net: Selective receptive ﬁeld
+network for anchor-free temporal action detection,” in Proc. IEEE Int.
+Conf. Acoust. Speech Signal Process. , 2021, pp. 2460–2464.
+[94] D. Shi et al., “React: Temporal action detection with relational queries,”
+in Proc. Eur . Conf. Comput. Vis., Springer, 2022, pp. 105–121.
+[95] X. Liu et al., “End-to-end temporal action detection with transformer,”
+IEEE Trans. Image Process., vol. 31, pp. 5427–5441, 2022.
+[96] C. Zhao, S. Liu, K. Mangalam, and B. Ghanem, “Re2TAL: Rewiring
+pretrained video backbones for reversible temporal action localization,”
+in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2023, pp. 10
+637–10 647.
+[97] S. Ma, L. Sigal, and S. Sclaroff, “Learning activity progression in LSTMs
+for activity detection and early detection,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2016, pp. 1942–1950.
+[98] J. Gao, K. Chen, and R. Nevatia, “CTAP: Complementary temporal action
+proposal generation,” in Proc. Eur . Conf. Comput. Vis., 2018, pp. 68–83.
+[99] H. Qiu, Y . Zheng, H. Y e, Y . Lu, F. Wang, and L. He, “Precise temporal
+action localization by evolving temporal proposals,” inProc. Conf. Assoc.
+Advance. Artif. Intell., 2018, pp. 388–396.
+[100] C. Zhao, A. K. Thabet, and B. Ghanem, “Video self-stitching graph
+network for temporal action localization,” in Proc. Int. Conf. Comput.
+Vis., 2021, pp. 13 658–13 667.
+[101] S. Chang, P . Wang, F. Wang, H. Li, and J. Feng, “Augmented trans-
+former with adaptive graph for temporal action proposal generation,”
+2021, arXiv:2103.16024.
+[102] C. Sun, H. Song, X. Wu, Y . Jia, and J. Luo, “Exploiting informative video
+segments for temporal action localization,” IEEE Trans. Multimedia ,
+vol. 24, pp. 274–287, 2022.
+[103] K. Xia, L. Wang, S. Zhou, N. Zheng, and W. Tang, “Learning to
+refactor action and co-occurrence features for temporal action localiza-
+tion,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2022,
+pp. 13 884–13 893.
+[104] G. Chen, Y .-D. Zheng, L. Wang, and T. Lu, “Dcan: Improving temporal
+action detection via dual context aggregation,” in Proc. Conf. Assoc.
+Advance. Artif. Intell., 2022, pp. 248–257.
+[105] Y . Zhao, Y . Xiong, L. Wang, Z. Wu, X. Tang, and D. Lin, “Temporal
+action detection with structured segment networks,” in Proc. Int. Conf.
+Comput. Vis., 2017, pp. 2914–2923.
+2188 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+[106] S. Buch, V . Escorcia, C. Shen, B. Ghanem, and J. Carlos Niebles, “SST:
+Single-stream temporal action proposals,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2017, pp. 2911–2920.
+[107] P . Chen, C. Gan, G. Shen, W. Huang, R. Zeng, and M. Tan, “Relation
+attention for temporal action localization,” IEEE Trans. Multimedia ,
+vol. 22, no. 10, pp. 2723–2733, Oct. 2020.
+[108] Y . Zhou, R. Wang, H. Li, and S. Y . Kung, “Temporal action localization
+using long short-term dependency,” IEEE Trans. Multimedia , vol. 23,
+pp. 4363–4375, 2021.
+[109] H. Su, W. Gan, W. Wu, Y . Qiao, and J. Y an, “BSN++: Complementary
+boundary regressor with scale-balanced relation modeling for temporal
+action proposal generation,” in Proc. Conf. Assoc. Advance. Artif. Intell.,
+2021, pp. 2602–2610.
+[110] Y . Bai, Y . Wang, Y . Tong, Y . Y ang, Q. Liu, and J. Liu, “Boundary content
+graph neural network for temporal action proposal generation,” in Proc.
+Eur . Conf. Comput. Vis., 2020, pp. 121–137.
+[111] J. Tan, J. Tang, L. Wang, and G. Wu, “Relaxed transformer decoders for
+direct action proposal generation,” inProc. Int. Conf. Comput. Vis., 2021,
+pp. 13 526–13 535.
+[112] M. Nawhal and G. Mori, “Activity graph transformer for temporal action
+localization,” 2021, arXiv:2101.08540.
+[113] X. Liu, S. Bai, and X. Bai, “An empirical study of end-to-end temporal
+action detection,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recog-
+nit., 2022, pp. 20 010–20 019.
+[114] W. Wang, Y . Wu, H. Liu, S. Wang, and J. Cheng, “Temporal action
+detection by joint identiﬁcation-veriﬁcation,” in Proc. Int. Conf. Pattern
+Recognit., 2018, pp. 2026–2031.
+[115] W. Zhang, B. Wang, S. Ma, Y . Zhang, and Y . Zhao, “I2Net: Mining
+intra-video and inter-video attention for temporal action localization,”
+Neurocomputing, vol. 444, pp. 16–29, 2021.
+[116] H. Song, X. Wu, B. Zhu, Y . Wu, M. Chen, and Y . Jia, “Temporal action
+localization in untrimmed videos using action pattern trees,”IEEE Trans.
+Multimedia, vol. 21, no. 3, pp. 717–730, Mar. 2019.
+[117] M. Xu, J.-M. Perez-Rua, X. Zhu, B. Ghanem, and B. Martinez, “Low-
+ﬁdelity end-to-end video encoder pre-training for temporal action local-
+ization,” in Proc. Int. Conf. Neural Inf. Process. Syst. , 2021, pp. 9923–
+9935.
+[118] F. C. Heilbron, J. C. Niebles, and B. Ghanem, “Fast temporal activ-
+ity proposals for efﬁcient detection of human actions in untrimmed
+videos,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2016,
+pp. 1914–1923.
+[119] R. Su, D. Xu, L. Sheng, and W. Ouyang, “PCG-TAL: Progressive cross-
+granularity cooperation for temporal action localization,” IEEE Trans.
+Image Process., vol. 30, pp. 2103–2113, 2021.
+[120] Z. Y uan, J. C. Stroud, T. Lu, and J. Deng, “Temporal action localization
+by structured maximal sums,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2017, pp. 3684–3692.
+[121] Z. Tian, C. Shen, H. Chen, and T. He, “FCOS: Fully convolutional
+one-stage object detection,” in Proc. Int. Conf. Comput. Vis. , 2019,
+pp. 9627–9636.
+[122] V . Escorcia, F. C. Heilbron, J. C. Niebles, and B. Ghanem, “DAPs: Deep
+action proposals for action understanding,” in Proc. Eur . Conf. Comput.
+Vis., 2016, pp. 768–784.
+[123] Y . Xiong, Y . Zhao, L. Wang, D. Lin, and X. Tang, “A pursuit of temporal
+accuracy in general activity detection,” 2017, arXiv: 1703.02716.
+[124] L. Wang et al., “Temporal segment networks for action recognition
+in videos,” IEEE Trans. Pattern Anal. Mach. Intell. , vol. 41, no. 11,
+pp. 2740–2755, Nov. 2019.
+[125] S. Nag, X. Zhu, Y .-Z. Song, and T. Xiang, “Proposal-free temporal action
+detection via global segmentation mask learning,” in Proc. Eur . Conf.
+Comput. Vis., Springer, 2022, pp. 645–662.
+[126] S. Hochreiter and J. Schmidhuber, “Long short-term memory,” Neural
+Comput., vol. 9, no. 8, pp. 1735–1780, 1997.
+[127] K. Cho et al., “Learning phrase representations using RNN encoder-
+decoder for statistical machine translation,” in Proc. Conf. Empir . Meth-
+ods Natural Lang. Process., 2014, pp. 1724–1734.
+[128] L. Wang et al., “Temporal segment networks: Towards good practices
+for deep action recognition,” in Proc. Eur . Conf. Comput. Vis. , 2016,
+pp. 20–36.
+[129] X. Lu, W. Wang, J. Shen, Y .-W. Tai, D. J. Crandall, and S. C. Hoi,
+“Learning video object segmentation from unlabeled videos,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2020, pp. 8960–8970.
+[130] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image
+recognition,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. ,
+2016, pp. 770–778.
+[131] F. C. Heilbron, V . Escorcia, B. Ghanem, and J. C. Niebles, “ActivityNet: A
+large-scale video benchmark for human activity understanding,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2015, pp. 961–970.
+[132] Y . Y uan, Y . Lyu, X. Shen, I. W. Tsang, and D.-Y . Y eung, “Marginalized
+average attentional network for weakly-supervised learning,” inProc. Int.
+Conf. Learn. Representations, 2019.
+[133] Y . Zhai, L. Wang, W. Tang, Q. Zhang, J. Y uan, and G. Hua, “Two-stream
+consensus network for weakly-supervised temporal action localization,”
+in Proc. Eur . Conf. Comput. Vis., 2020, pp. 37–54.
+[134] P . Lee, Y . Uh, and H. Byun, “Background suppression network for
+weakly-supervised temporal action localization,” in Proc. Conf. Assoc.
+Advance. Artif. Intell., 2020, pp. 11 320–11327.
+[135] W. Luo et al., “Action unit memory network for weakly supervised
+temporal action localization,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2021, pp. 9969–9979.
+[136] L. Y ang, J. Han, T. Zhao, T. Lin, D. Zhang, and J. Chen, “Background-
+click supervision for temporal action localization,” IEEE Trans. Pattern
+Anal. Mach. Intell., vol. 44, no. 12, pp. 9814–9829, Dec. 2022.
+[137] T. Zhao, J. Han, L. Y ang, and D. Zhang, “Equivalent classiﬁcation
+mapping for weakly supervised temporal action localization,” IEEE
+Trans. Pattern Anal. Mach. Intell. , vol. 45, no. 3, pp. 3019–3031,
+Mar. 2023.
+[138] B. He, X. Y ang, L. Kang, Z. Cheng, X. Zhou, and A. Shrivastava, “ASM-
+Loc: Action-aware segment modeling for weakly-supervised temporal
+action localization,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit., 2022, pp. 13925–13935.
+[139] M. Chen, J. Gao, S. Y ang, and C. Xu, “Dual-evidential learning for
+weakly-supervised temporal action localization,” in Proc. Eur . Conf.
+Comput. Vis., Springer, 2022, pp. 192–208.
+[140] J. Fu, J. Gao, and C. Xu, “Semantic and temporal contextual correla-
+tion learning for weakly-supervised temporal action localization,” IEEE
+Trans. Pattern Anal. Mach. Intell. , vol. 45, no. 10, pp. 12427–12443,
+Oct. 2023.
+[141] H. Alwassel, S. Giancola, and B. Ghanem, “TSP: Temporally-sensitive
+pretraining of video encoders for localization tasks,” in Proc. IEEE/CVF
+Int. Conf. Comput. Vis., 2021, pp. 3173–3183.
+[142] K. Simonyan and A. Zisserman, “Two-stream convolutional networks
+for action recognition in videos,” in Proc. Int. Conf. Neural Inf. Process.
+Syst., 2014, pp. 568–576.
+[143] D. Damen et al., “Rescaling egocentric vision: Collection, pipeline and
+challenges for EPIC-KITCHENS-100,” Int. J. Comput. Vis. , vol. 130,
+pp. 33–55, 2022.
+[144] R. De Geest, E. Gavves, A. Ghodrati, Z. Li, C. Snoek, and T. Tuyte-
+laars, “Online action detection,” in Proc. Eur . Conf. Comput. Vis., 2016,
+pp. 269–284.
+[145] X. Wang et al., “OadTR: Online action detection with transformers,” in
+Proc. Int. Conf. Comput. Vis., 2021, pp. 7545–7555.
+[146] J.-X. Zhong, N. Li, W. Kong, T. Zhang, T. H. Li, and G. Li, “Step-by-
+step erasion, one-by-one collection: A weakly supervised temporal action
+detector,” in Proc. ACM Int. Conf. Multimedia , 2018, pp. 35–44.
+[147] Z. Liu et al., “Weakly supervised temporal action localization through
+contrast based evaluation networks,” in Proc. Int. Conf. Comput. Vis. ,
+2019, pp. 3899–3908.
+[148] M. Moniruzzaman, Z. Yin, Z. He, R. Qin, and M. C. Leu, “Action
+completeness modeling with background aware networks for weakly-
+supervised temporal action localization,” in Proc. ACM Int. Conf. Multi-
+media, 2020, pp. 2166–2174.
+[149] A. Islam, C. Long, and R. Radke, “A hybrid attention mechanism for
+weakly-supervised temporal action localization,” in Proc. Conf. Assoc.
+Advance. Artif. Intell., 2021, pp. 1637–1645.
+[150] P . Lee, J. Wang, Y . Lu, and H. Byun, “Weakly-supervised temporal action
+localization by uncertainty modeling,” in Proc. Conf. Assoc. Advance.
+Artif. Intell., 2021, pp. 1854–1862.
+[151] Y . Liu, J. Chen, Z. Chen, B. Deng, J. Huang, and H. Zhang, “The blessings
+of unlabeled background in untrimmed videos,” inProc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2021, pp. 6176–6185.
+[152] J. Ma, S. K. Gorti, M. V olkovs, and G. Y u, “Weakly supervised action
+selection learning in video,” in Proc. IEEE/CVF Conf. Comput. Vis.
+Pattern Recognit., 2021, pp. 7587–7596.
+[153] Y . Ji, X. Jia, H. Lu, and X. Ruan, “Weakly-supervised temporal action
+localization via cross-stream collaborative learning,” in Proc. ACM Int.
+Conf. Multimedia, 2021, pp. 853–861.
+[154] L. Huang, L. Wang, and H. Li, “Foreground-action consistency network
+for weakly supervised temporal action localization,” in Proc. Int. Conf.
+Comput. Vis., 2021, pp. 8002–8011.
+W ANG et al.: TEMPORAL ACTION LOCALIZA TION IN THE DEEP LEARNING ERA: A SURVEY 2189
+[155] S. Narayan, H. Cholakkal, M. Hayat, F. S. Khan, M.-H. Y ang, and L.
+Shao, “D2-Net: Weakly-supervised action localization via discriminative
+embeddings and denoised activations,” in Proc. Int. Conf. Comput. Vis. ,
+2021, pp. 13608–13617.
+[156] L. Huang, Y . Huang, W. Ouyang, and L. Wang, “Two-branch relational
+prototypical network for weakly supervised temporal action localization,”
+IEEE Trans. Pattern Anal. Mach. Intell. , vol. 44, no. 9, pp. 5729–5746,
+Sep. 2022.
+[157] M. Cao, C. Zhang, L. Chen, M. Z. Shou, and Y . Zou, “Deep
+motion prior for weakly-supervised temporal action localization,”
+2021, arXiv:2108.05607.
+[158] S. Qu, G. Chen, Z. Li, L. Zhang, F. Lu, and A. Knoll, “ACM-Net:
+Action context modeling network for weakly-supervised temporal action
+localization,” 2021, arXiv:2104.02967.
+[159] C. Ju, P . Zhao, S. Chen, Y . Zhang, X. Zhang, and Q. Tian, “Adaptive
+mutual supervision for weakly-supervised temporal action localization,”
+2021, arXiv:2104.02357.
+[160] Y . Ge, X. Qin, D. Y ang, and M. Jagersand, “Deep snippet selective
+network for weakly supervised temporal action localization,” Pattern
+Recognit., vol. 110, 2021, Art. no. 107686.
+[161] R. Su, D. Xu, L. Zhou, and W. Ouyang, “Improving weakly supervised
+temporal action localization by exploiting multi-resolution information in
+temporal domain,” IEEE Trans. Image Process., vol. 30, pp. 6659–6672,
+2021.
+[162] Y . Zhai, L. Wang, W. Tang, Q. Zhang, N. Zheng, and G. Hua, “Action
+coherence network for weakly-supervised temporal action localization,”
+IEEE Trans. Multimedia, vol. 24, pp. 1857–1870, 2022.
+[163] A. Pardo, H. Alwassel, F. Caba, A. Thabet, and B. Ghanem, “ReﬁneLoc:
+Iterative reﬁnement for weakly-supervised action localization,” in Proc.
+IEEE/CVF Winter Conf. Appl. Comput. Vis. , 2021, pp. 3319–3328.
+[164] J. Li, T. Y ang, W. Ji, J. Wang, and L. Cheng, “Exploring denoised cross-
+video contrast for weakly-supervised temporal action localization,” in
+Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2022, pp. 19914–
+19924.
+[165] L. Huang, L. Wang, and H. Li, “Weakly supervised temporal action
+localization via representative snippet knowledge propagation,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2022, pp. 3272–3281.
+[166] Y . Cheng, Y . Sun, H. Fan, T. Zhuo, J.-H. Lim, and M. Kankanhalli,
+“Entropy guided attention network for weakly-supervised action local-
+ization,” Pattern Recognit., vol. 129, 2022, Art. no. 108718.
+[167] L. Huang, L. Wang, and H. Li, “Multi-modality self-distillation for
+weakly supervised temporal action localization,” IEEE Trans. Image
+Process., vol. 31, pp. 1504–1519, 2022.
+[168] Z. Chen, H. Liu, L. Zhang, and X. Liao, “Multi-dimensional attention with
+similarity constraint for weakly-supervised temporal action localization,”
+IEEE Trans. Multimedia, vol. 25, pp. 4349–4360, 2023.
+[169] J. Zhou, L. Huang, L. Wang, S. Liu, and H. Li, “Improving weakly
+supervised temporal action localization by bridging train-test gap in
+pseudo labels,” inProc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit.,
+2023, pp. 23003–23012.
+[170] C. Ju et al., “Distilling vision-language pre-training to collaborate with
+weakly-supervised temporal action localization,” in Proc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2023, pp. 14751–14762.
+[171] H. Ren, W. Y ang, T. Zhang, and Y . Zhang, “Proposal-based multiple
+instance learning for weakly-supervised temporal action localization,” in
+Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2023, pp. 2394–
+2404.
+[172] G. Li, D. Cheng, X. Ding, N. Wang, X. Wang, and X. Gao, “Boost-
+ing weakly-supervised temporal action localization with text informa-
+tion,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2023,
+pp. 10648–10657.
+[173] Y . Wang, Y . Li, and H. Wang, “Two-stream networks for weakly-
+supervised temporal action localization with semantic-aware mecha-
+nisms,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2023,
+pp. 18878–18887.
+[174] Z. Li, Z. Wang, and Q. Liu, “Actionness inconsistency-guided contrastive
+learning for weakly-supervised temporal action localization,” in Proc.
+Conf. Assoc. Advance. Artif. Intell. , 2023, pp. 1513–1521.
+[175] Y . Xu et al., “Segregated temporal assembly recurrent networks for
+weakly supervised multiple action detection,” in Proc. Conf. Assoc.
+Advance. Artif. Intell., 2019, pp. 9070–9078.
+[176] W. Y ang, T. Zhang, X. Y u, T. Qi, Y . Zhang, and F. Wu, “Uncertainty
+guided collaborative training for weakly supervised temporal action de-
+tection,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2021,
+pp. 53–63.
+[177] X.-Y . Zhang, H. Shi, C. Li, and X. Shi, “Action shufﬂing for weakly
+supervised temporal localization,” 2021, arXiv:2105.04208.
+[178] X.-Y . Zhang, H. Shi, C. Li, P . Li, Z. Li, and P . Ren, “Weakly-supervised
+action localization via embedding-modeling iterative optimization,” Pat-
+tern Recognit., vol. 113, 2021, Art. no. 107831.
+[179] J. Gao, M. Chen, and C. Xu, “Fine-grained temporal contrastive learning
+for weakly-supervised temporal action localization,” in Proc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2022, pp. 19999–20009.
+[180] L. Huang, Y . Huang, W. Ouyang, and L. Wang, “Relational prototypical
+network for weakly supervised temporal action localization,” in Proc.
+Conf. Assoc. Advance. Artif. Intell. , 2020, pp. 11053–11060.
+[181] Z. Y ang, J. Qin, and D. Huang, “ACGNet: Action complement graph
+network for weakly-supervised temporal action localization,” in Proc.
+Conf. Assoc. Advance. Artif. Intell. , 2022, pp. 3090–3098.
+[182] Q. Liu, Z. Wang, R. Chen, and Z. Li, “Convex combination consis-
+tency between neighbors for weakly-supervised action localization,”
+2022, arXiv:2205.00400.
+[183] B. Li, B. Guo, Y . Zhu, J. Yin, and X. Ji, “Superframe-based temporal
+proposals for weakly supervised temporal action detection,” IEEE Trans.
+Multimedia, vol. 25, pp. 3628–3641, 2023.
+[184] J.-T. Lee, S. Y un, and M. Jain, “Leaky gated cross-attention for weakly su-
+pervised multi-modal temporal action localization,” in Proc. IEEE/CVF
+Winter Conf. Appl. Comput. Vis., 2022, pp. 3213–3222.
+[185] Y . Zhai et al., “Adaptive two-stream consensus network for weakly-
+supervised temporal action localization,” IEEE Trans. Pattern Anal.
+Mach. Intell., vol. 45, no. 4, pp. 4136–4151, Apr. 2023.
+[186] B. Wang, X. Zhang, and Y . Zhao, “Exploring sub-action granularity for
+weakly supervised temporal action localization,” IEEE Trans. Circuits
+Syst. Video Technol., vol. 32, no. 4, pp. 2186–2198, Apr. 2022.
+[187] T. Y u, Z. Ren, Y . Li, E. Y an, N. Xu, and J. Y uan, “Temporal structure
+mining for weakly supervised action detection,” in Proc. Int. Conf.
+Comput. Vis., 2019, pp. 5522–5531.
+[188] X.-Y . Zhang, H. Shi, C. Li, and P . Li, “Multi-instance multi-label action
+recognition and localization based on spatio-temporal pre-trimming for
+untrimmed videos,” in Proc. Conf. Assoc. Advance. Artif. Intell. , 2020,
+pp. 12886–12893.
+[189] X.-Y . Zhang, C. Li, H. Shi, X. Zhu, P . Li, and J. Dong, “Adapnet: Adapt-
+ability decomposing encoder-decoder network for weakly supervised
+action recognition and localization,” IEEE Trans. Neural Netw. Learn.
+Syst., vol. 34, no. 4, pp. 1852–1863, Apr. 2023.
+[190] G. Gong, X. Wang, Y . Mu, and Q. Tian, “Learning temporal co-attention
+models for unsupervised video action localization,” in Proc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2020, pp. 9819–9828.
+[191] K. Soomro, A. R. Zamir, and M. Shah, “UCF101: A dataset of 101 human
+actions classes from videos in the wild,” 2012, arXiv:1212.0402.
+[192] Y .-G. Jiang et al., THUMOS challenge: Action recognition with a large
+number of classes, 2014. Accessed: Nov. 10, 2023. [Online]. Available:
+http://crcv.ucf.edu/THUMOS14/
+[193] Y . Liu, L. Wang, Y . Wang, X. Ma, and Y . Qiao, “FineAction: A ﬁne-
+grained video dataset for temporal action localization,” IEEE Trans.
+Image Process., vol. 31, pp. 6937–6950, 2022.
+[194] H. Zhao, A. Torralba, L. Torresani, and Z. Y an, “HACS: Human action
+clips and segments dataset for recognition and temporal localization,” in
+Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2019, pp. 8668–8678.
+[195] D. Shao, Y . Zhao, B. Dai, and D. Lin, “FineGym: A hierarchical video
+dataset for ﬁne-grained action understanding,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2020, pp. 2616–2625.
+[196] S. Abu-El-Haija et al., “Y ouTube-8M: A large-scale video classiﬁcation
+benchmark,” 2016, arXiv:1609.08675.
+[197] L. Zhang et al., “ZSTAD: Zero-shot temporal activity detection,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2020, pp. 879–888.
+[198] Y . Xian, C. H. Lampert, B. Schiele, and Z. Akata, “Zero-shot learning–a
+comprehensive evaluation of the good, the bad and the ugly,”IEEE Trans.
+Pattern Anal. Mach. Intell., vol. 41, no. 9, pp. 2251–2265, Sep. 2019.
+[199] Z. Li, L. He, and H. Xu, “Weakly-supervised temporal action detection
+for ﬁne-grained videos with hierarchical atomic actions,” in Proc. Eur .
+Conf. Comput. Vis., Springer, 2022, pp. 567–584.
+[200] M. Chen, J. Gao, and C. Xu, “Cascade evidential learning for open-world
+weakly-supervised temporal action localization,” in Proc. IEEE/CVF
+Conf. Comput. Vis. Pattern Recognit., 2023, pp. 14741–14750.
+[201] H. Touvron et al., “LLaMA: Open and efﬁcient foundation language
+models,” 2023, arXiv:2302.13971.
+[202] J. Li, D. Li, S. Savarese, and S. Hoi, “BLIP-2: Bootstrapping language-
+image pre-training with frozen image encoders and large language mod-
+els,” 2023, arXiv:2301.12597.
+2190 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE, VOL. 46, NO. 4, APRIL 2024
+[203] J. Ji, K. Cao, and J. C. Niebles, “Learning temporal action proposals with
+fewer labels,” in Proc. Int. Conf. Comput. Vis., 2019, pp. 7073–7082.
+[204] X. Ding, N. Wang, X. Gao, J. Li, X. Wang, and T. Liu, “KFC: An
+efﬁcient framework for semi-supervised temporal action localization,”
+IEEE Trans. Image Process., vol. 30, pp. 6869–6878, 2021.
+[205] X. Wang, S. Zhang, Z. Qing, Y . Shao, C. Gao, and N. Sang, “Self-
+supervised learning for semi-supervised temporal action proposal,”
+in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2021,
+pp. 1905–1914.
+[206] B. Shi, Q. Dai, J. Hoffman, K. Saenko, T. Darrell, and H. Xu, “Temporal
+action detection with multi-level supervision,” inProc. Int. Conf. Comput.
+Vis., 2021, pp. 8022–8032.
+[207] S. Nag, X. Zhu, Y .-Z. Song, and T. Xiang, “Semi-supervised temporal
+action detection with proposal-free masking,” inProc. Eur . Conf. Comput.
+Vis., Springer, 2022, pp. 663–680.
+[208] H. Kang, K. Kim, Y . Ko, and S. J. Kim, “CAG-QIL: Context-aware
+actionness grouping via Q imitation learning for online temporal ac-
+tion localization,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. , 2021,
+pp. 13709–13718.
+[209] Y . H. Kim, H. Kang, and S. J. Kim, “A sliding window scheme for online
+temporal action localization,” in Proc. Eur . Conf. Comput. Vis., Springer,
+2022, pp. 653–669.
+[210] F. Ma et al., “SF-Net: Single-frame supervision for temporal action
+localization,” in Proc. Eur . Conf. Comput. Vis., 2020, pp. 420–437.
+[211] M. Jain, A. Ghodrati, and C. G. Snoek, “ActionBytes: Learning from
+trimmed videos to localize actions,” in Proc. IEEE/CVF Conf. Comput.
+Vis. Pattern Recognit., 2020, pp. 1168–1177.
+[212] F. Long, T. Y ao, Z. Qiu, X. Tian, J. Luo, and T. Mei, “Learning to
+localize actions from moments,” in Proc. Eur . Conf. Comput. Vis., 2020,
+pp. 137–154.
+[213] J.-T. Lee, M. Jain, H. Park, and S. Y un, “Cross-attentional audio-visual
+fusion for weakly-supervised action localization,” in Proc. Int. Conf.
+Learn. Representations, 2020.
+[214] B. Wang, L. Y ang, and Y . Zhao, “POLO: Learning explicit cross-modality
+fusion for temporal action localization,” IEEE Signal Process. Lett. ,
+vol. 28, pp. 503–507, 2021.
+[215] J. Gao, C. Sun, Z. Y ang, and R. Nevatia, “TALL: Temporal activity
+localization via language query,” in Proc. IEEE Int. Conf. Comput. Vis. ,
+2017, pp. 5277–5285.
+[216] J. Mun, M. Cho, and B. Han, “Local-global video-text interactions for
+temporal grounding,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit., 2020, pp. 10810–10819.
+[217] X. Lan, Y . Y uan, X. Wang, Z. Wang, and W. Zhu, “A survey on tem-
+poral sentence grounding in videos,” ACM Trans. Multimedia Comput.,
+Commun. Appl., vol. 19, no. 2, pp. 1–33, 2023.
+[218] W. Bao, Q. Y u, and Y . Kong, “OpenTAL: Towards open set temporal
+action localization,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern
+Recognit., 2022, pp. 2979–2989.
+[219] H. Alwassel, F. C. Heilbron, V . Escorcia, and B. Ghanem, “Diagnosing
+error in temporal action detectors,” in Proc. Eur . Conf. Comput. Vis. ,
+2018, pp. 256–272.
+[220] C. Doersch, A. Gupta, and A. A. Efros, “Unsupervised visual represen-
+tation learning by context prediction,” in Proc. Int. Conf. Comput. Vis. ,
+2015, pp. 1422–1430.
+[221] K. He, H. Fan, Y . Wu, S. Xie, and R. Girshick, “Momentum contrast for
+unsupervised visual representation learning,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2020, pp. 9729–9738.
+[222] A. Piergiovanni, A. Angelova, and M. S. Ryoo, “Evolving losses for
+unsupervised video representation learning,” in Proc. IEEE/CVF Conf.
+Comput. Vis. Pattern Recognit., 2020, pp. 133–142.
+[223] G. Wang, Y . Zhou, C. Luo, W. Xie, W. Zeng, and Z. Xiong, “Unsupervised
+visual representation learning by tracking patches in video,” in Proc.
+IEEE/CVF Conf. Comput. Vis. Pattern Recognit., 2021, pp. 2563–2572.
+[224] R. Qian et al., “Spatiotemporal contrastive video representation learn-
+ing,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. , 2021,
+pp. 6964–6974.
+[225] T. Li, A. K. Sahu, A. Talwalkar, and V . Smith, “Federated learning:
+Challenges, methods, and future directions,” IEEE Signal Process. Mag.,
+vol. 37, no. 3, pp. 50–60, May 2020.
+[226] D. Bogdanov, S. Laur, and J. Willemson, “Sharemind: A framework for
+fast privacy-preserving computations,” inProc. Eur . Symp. Res. Comput.
+Secur ., 2008, pp. 192–206.
+[227] D. Demmler, T. Schneider, and M. Zohner, “ABY -A framework for
+efﬁcient mixed-protocol secure two-party computation,” in Proc. Netw.
+Distrib. Syst. Secur . Symp., 2015.
+[228] B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. A. y Arcas,
+“Communication-efﬁcient learning of deep networks from decentralized
+data,” in Proc. Artif. Intell. Statist., 2017, pp. 1273–1282.
+[229] C. E. Shannon, “A mathematical theory of communication,” Bell Syst.
+Tech. J., vol. 27, no. 3, pp. 379–423, 1948.
+Binglu Wang (Member, IEEE) received the PhD
+degree in control science and engineering with the
+School of Automation at Northwestern Polytechnic
+University, Xi’an, China, in 2021. He is currently a
+postdoctoral with the Beijing Institute of Technol-
+ogy, Beijing, China. His research interests include
+computer vision, digital signal processing and deep
+learning.
+Y ongqiang Zhao(Member, IEEE) received the BS,
+MS, and PhD degrees in control science and en-
+gineering from the Northwestern Polytechnic Uni-
+versity,Xi’an, China. From 2007 to 2009, he was
+as a postdoctora researcher with McMaster Univer-
+sity, Hamilton, ON, Canada, and Temple University,
+Philadelphia, PA, USA. He is currently a professor
+with the Northwestern Polytechnical University. His
+research interests include polarization vision, hyper-
+spectral imaging, and pattern recognition.
+Le Yang received the BE and PhD degrees from Northwestern Polytechnical
+University in 2016 and 2022. His research interests include video analysis and
+weakly supervised learning.
+Teng Long(Fellow, IEEE) was born in Fujian, China,
+in 1968. He received the MS and PhD degrees in elec-
+trical engineering from the Beijing Institute of Tech-
+nology, Beijing, China, in 1991 and 1995, respec-
+tively. He was a visiting scholar with Stanford Uni-
+versity, California, in 1999, and University College
+London, in 2002. He has been a full professor with
+the Department of Electrical Engineering, Beijing
+Institute of Technology, since 2000. He has authored
+or coauthored more than 300 articles. His research
+interests include synthetic aperture radar systems and
+real-time digital signal processing, with applications to radar and communication
+systems. He is a fellow of the Institute of Electronic and Technology and the
+Chinese Institute of Electronics. He was the recipient of many awards for his
+contributions to research and invention in China. He has been a member of the
+Chinese Engineering Academy since 2021.
+Xuelong Li (Fellow, IEEE) is a full professor with School of Artiﬁcial Intelli-
+gence, Optics and Electronics (iOPEN), Northwestern Polytechnical University,
+Xi’an, China.

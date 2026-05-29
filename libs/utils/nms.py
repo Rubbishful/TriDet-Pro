@@ -2,7 +2,114 @@
 # https://github.com/open-mmlab/mmcv/blob/master/mmcv/ops/nms.py
 import torch
 
-import nms_1d_cpu
+# Try to import the C extension, fall back to pure PyTorch
+try:
+    import nms_1d_cpu
+    _has_nms_cpu = True
+except ImportError:
+    _has_nms_cpu = False
+
+
+def _nms_1d_torch(segs, scores, iou_threshold):
+    """Pure PyTorch implementation of 1D NMS."""
+    if segs.numel() == 0:
+        return torch.empty(0, dtype=torch.long, device=segs.device)
+
+    x1 = segs[:, 0]
+    x2 = segs[:, 1]
+    areas = x2 - x1 + 1e-6
+
+    _, order = scores.sort(0, descending=True)
+    keep = torch.ones(segs.size(0), dtype=torch.bool, device=segs.device)
+
+    for _i in range(segs.size(0)):
+        if not keep[_i]:
+            continue
+        i = order[_i]
+        ix1, ix2, iarea = x1[i], x2[i], areas[i]
+
+        for _j in range(_i + 1, segs.size(0)):
+            if not keep[_j]:
+                continue
+            j = order[_j]
+            inter = max(0.0, min(ix2, x2[j]) - max(ix1, x1[j]))
+            ovr = inter / (iarea + areas[j] - inter)
+            if ovr >= iou_threshold:
+                keep[_j] = False
+
+    return order[keep]
+
+
+def _softnms_1d_torch(segs, scores, iou_threshold, sigma, min_score, method):
+    """Pure PyTorch implementation of 1D soft NMS.
+
+    method: 0=hard NMS, 1=linear, 2=gaussian
+    Returns indices of kept segments and the dets tensor (N x 3: x1, x2, score).
+    """
+    nsegs = segs.size(0)
+    if nsegs == 0:
+        return torch.empty(0, dtype=torch.long, device=segs.device), segs.new_empty((0, 3))
+
+    x1 = segs[:, 0].clone()
+    x2 = segs[:, 1].clone()
+    sc = scores.clone()
+    areas = x2 - x1 + 1e-6
+    inds = torch.arange(nsegs, dtype=torch.long, device=segs.device)
+
+    dets = segs.new_empty((nsegs, 3))
+    pos = 0
+
+    while pos < nsegs:
+        # find max score among remaining
+        remaining_scores = sc[pos:nsegs]
+        max_idx = remaining_scores.argmax()
+        max_pos = pos + max_idx.item()
+
+        # swap max_pos <-> pos
+        ix1 = dets[pos, 0] = x1[max_pos].item()
+        ix2 = dets[pos, 1] = x2[max_pos].item()
+        iscore = dets[pos, 2] = sc[max_pos].item()
+        iarea = areas[max_pos].item()
+        iind = inds[max_pos].item()
+
+        x1[max_pos], x1[pos] = x1[pos].item(), ix1
+        x2[max_pos], x2[pos] = x2[pos].item(), ix2
+        sc[max_pos], sc[pos] = sc[pos].item(), iscore
+        areas[max_pos], areas[pos] = areas[pos].item(), iarea
+        inds[max_pos], inds[pos] = inds[pos].item(), iind
+
+        # go through remaining
+        j = pos + 1
+        while j < nsegs:
+            xx1 = max(ix1, x1[j].item())
+            xx2 = min(ix2, x2[j].item())
+            inter = max(0.0, xx2 - xx1)
+            ovr = inter / (iarea + areas[j].item() - inter)
+
+            if method == 0:       # hard nms
+                weight = 0.0 if ovr >= iou_threshold else 1.0
+            elif method == 1:     # linear
+                weight = (1.0 - ovr) if ovr >= iou_threshold else 1.0
+            else:                 # gaussian
+                weight = float(torch.exp(torch.tensor(-(ovr * ovr) / sigma)))
+
+            sc[j] = sc[j].item() * weight
+
+            if sc[j] < min_score:
+                # swap with last
+                nsegs -= 1
+                if nsegs == j:
+                    break
+                x1[j], x1[nsegs] = x1[nsegs].item(), x1[j].item()
+                x2[j], x2[nsegs] = x2[nsegs].item(), x2[j].item()
+                sc[j], sc[nsegs] = sc[nsegs].item(), sc[j].item()
+                areas[j], areas[nsegs] = areas[nsegs].item(), areas[j].item()
+                inds[j], inds[nsegs] = inds[nsegs].item(), inds[j].item()
+            else:
+                j += 1
+        pos += 1
+
+    return inds[:nsegs], dets[:pos]
 
 
 class NMSop(torch.autograd.Function):
@@ -21,10 +128,13 @@ class NMSop(torch.autograd.Function):
                 valid_mask, as_tuple=False).squeeze(dim=1)
 
         # nms op; return inds that is sorted by descending order
-        inds = nms_1d_cpu.nms(
-            segs.contiguous().cpu(),
-            scores.contiguous().cpu(),
-            iou_threshold=float(iou_threshold))
+        if _has_nms_cpu:
+            inds = nms_1d_cpu.nms(
+                segs.contiguous().cpu(),
+                scores.contiguous().cpu(),
+                iou_threshold=float(iou_threshold))
+        else:
+            inds = _nms_1d_torch(segs, scores, iou_threshold)
         # cap by max number
         if max_num > 0:
             inds = inds[:min(max_num, len(inds))]
@@ -41,26 +151,37 @@ class SoftNMSop(torch.autograd.Function):
         ctx, segs, scores, cls_idxs,
         iou_threshold, sigma, min_score, method, max_num
     ):
-        # pre allocate memory for sorted results
-        dets = segs.new_empty((segs.size(0), 3), device='cpu')
-        # softnms op, return dets that stores the sorted segs / scores
-        inds = nms_1d_cpu.softnms(
-            segs.cpu(),
-            scores.cpu(),
-            dets.cpu(),
-            iou_threshold=float(iou_threshold),
-            sigma=float(sigma),
-            min_score=float(min_score),
-            method=int(method))
-        # cap by max number
-        if max_num > 0:
-            n_segs = min(len(inds), max_num)
+        if _has_nms_cpu:
+            # pre allocate memory for sorted results
+            dets = segs.new_empty((segs.size(0), 3), device='cpu')
+            inds = nms_1d_cpu.softnms(
+                segs.cpu(),
+                scores.cpu(),
+                dets.cpu(),
+                iou_threshold=float(iou_threshold),
+                sigma=float(sigma),
+                min_score=float(min_score),
+                method=int(method))
+            # cap by max number
+            if max_num > 0:
+                n_segs = min(len(inds), max_num)
+            else:
+                n_segs = len(inds)
+            sorted_segs = dets[:n_segs, :2]
+            sorted_scores = dets[:n_segs, 2]
+            sorted_cls_idxs = cls_idxs[inds]
+            sorted_cls_idxs = sorted_cls_idxs[:n_segs]
         else:
-            n_segs = len(inds)
-        sorted_segs = dets[:n_segs, :2]
-        sorted_scores = dets[:n_segs, 2]
-        sorted_cls_idxs = cls_idxs[inds]
-        sorted_cls_idxs = sorted_cls_idxs[:n_segs]
+            inds, dets = _softnms_1d_torch(
+                segs, scores, iou_threshold, sigma, min_score, method)
+            if max_num > 0:
+                n_segs = min(len(inds), max_num)
+            else:
+                n_segs = len(inds)
+            sorted_segs = dets[:n_segs, :2]
+            sorted_scores = dets[:n_segs, 2]
+            sorted_cls_idxs = cls_idxs[inds[:n_segs]]
+
         return sorted_segs.clone(), sorted_scores.clone(), sorted_cls_idxs.clone()
 
 

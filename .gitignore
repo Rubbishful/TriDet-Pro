@@ -1,0 +1,23 @@
+# MCP config (contains API keys)
+.mcp.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Checkpoints & outputs (244MB each, too large for Git)
+ckpt/
+*.pth.tar
+*.pkl
+
+# IDE & tools
+.clawhub/
+.vscode/
+.idea/
+
+# Project docs (optional: keep if you want to share with teammates)
+# doc/
+
+# Environment
+.conda/
