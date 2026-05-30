@@ -1,168 +1,254 @@
-# [CVPR2023] TriDet: Temporal Action Detection with Relative Boundary Modeling
+# TriDet — 时序动作检测课程设计
 
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/tridet-temporal-action-detection-with/temporal-action-localization-on-hacs)](https://paperswithcode.com/sota/temporal-action-localization-on-hacs?p=tridet-temporal-action-detection-with)
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/tridet-temporal-action-detection-with/temporal-action-localization-on-thumos14)](https://paperswithcode.com/sota/temporal-action-localization-on-thumos14?p=tridet-temporal-action-detection-with)
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/tridet-temporal-action-detection-with/temporal-action-localization-on-epic-kitchens)](https://paperswithcode.com/sota/temporal-action-localization-on-epic-kitchens?p=tridet-temporal-action-detection-with)
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/tridet-temporal-action-detection-with/temporal-action-localization-on-activitynet)](https://paperswithcode.com/sota/temporal-action-localization-on-activitynet?p=tridet-temporal-action-detection-with)
+基于 CVPR 2023 [TriDet](https://arxiv.org/abs/2303.07347) 论文的时序动作检测（Temporal Action Detection）复现与改进项目。
 
-![Image Title](framework.jpg)
+原始论文仓库: [dingfengshi/TriDet](https://github.com/dingfengshi/TriDet) | 上游 README: [README_upstream.md](README_upstream.md)
 
-## Overview
+## 项目结构
 
-This repository contains the code for _TriDet: Temporal Action Detection with Relative Boundary
-Modeling_ [paper](https://arxiv.org/abs/2303.07347), which has been accepted for CVPR2023. Our code is built upon the
-codebase from [ActionFormer](https://github.com/happyharrycn/actionformer_release)
-and [Detectron2](https://github.com/facebookresearch/detectron2), and we would like to express our
-gratitude for their outstanding work.
-
-To quickly get start with the model architecture, you can focus mainly on the following files:
-
-- `libs/modeling/blocks.py`
-- `libs/modeling/backbones.py`
-- `libs/modeling/meta_archs.py`
-
-## Update Log
-- **2023.12.26 We have released the VideoMAEv2 features for HACS dataset, please see [here](https://github.com/dingfengshi/tridetplus) for more details.**
-- 2023.9.14 An extended version is updated to [Arxiv](https://arxiv.org/abs/2309.05590) 
-- 2023.3.16 We release the code and the
-  pretrained [checkpoints](https://drive.google.com/drive/folders/1eVROG6z-vHtm4AnXsh4N8ruUKkAidLqZ?usp=sharing).
-- 2023.3.14 The pre-print version of our [paper](https://arxiv.org/abs/2303.07347) is updated to Arxiv.
-- 2023.2.28 Our paper has been accepted for CVPR2023.
-
-## Installation
-
-1. Please ensure that you have installed PyTorch and CUDA. **(This code requires PyTorch version >= 1.11. We use
-   version=1.11.0 in our experiments)**
-
-2. Install the required packages by running the following command:
-
-```shell
-pip install  -r requirements.txt
+```
+Tridet/
+├── train.py / eval.py          # 训练 / 评估入口
+├── download_activitynet.py     # ActivityNet 原始视频下载（FiftyOne）
+├── configs/                    # 各数据集配置文件
+│   ├── thumos_i3d.yaml         # THUMOS14（I3D, 20 类）
+│   └── anet_tsp.yaml           # ActivityNet（TSP, 200 类）
+├── libs/
+│   ├── modeling/               # TriDet 模型实现
+│   │   ├── backbones.py        # SGP Backbone
+│   │   ├── blocks.py           # 基础模块
+│   │   ├── meta_archs.py       # 主模型（训练/推理/后处理）
+│   │   ├── necks.py            # FPN
+│   │   └── losses.py           # 分类/回归损失
+│   ├── datasets/               # 数据集加载
+│   └── utils/                  # NMS、评估指标、训练工具
+├── tools/                      # 一键训练+评估脚本
+├── doc/                        # 项目文档
+│   └── 开发规划V2.1.md          # 当前开发规划
+├── log/                        # 训练/评估日志
+├── ckpt/                       # 模型权重（不纳入 Git）
+└── analysis/                   # 错误分析模块（规划中）
 ```
 
-3. Install NMS
+## 当前进度
 
-```shell
-cd ./libs/utils
-python setup.py install --user
+### Phase 1: 基线复现 ✅
+
+| 数据集 | mAP（复现） | 论文 mAP | 状态 |
+|--------|------------|----------|------|
+| THUMOS14 | **68.59%** | 69.27% | ✅ 成功复现 |
+| ActivityNet | **36.54%** | ~36.5% | ✅ 成功复现 |
+
+- THUMOS14: I3D 特征 (2048-dim), 20 类, tIoU=0.3:0.1:0.7
+- ActivityNet: TSP 特征 (512-dim), 200 类, tIoU=0.5:0.05:0.95
+
+### Phase 2: 改进与分析（进行中）
+
+详见 [doc/开发规划V2.1.md](doc/开发规划V2.1.md)
+
+- 多实例 / 重叠动作分析
+- 主体检测关联
+- 端到端特征提取
+
+## 环境配置
+
+### 1. 安装 Anaconda
+
+Anaconda 是 Python 虚拟环境管理工具，可以为每个项目创建独立的 Python 环境，避免依赖冲突。
+
+- 下载: [Anaconda 官网](https://www.anaconda.com/download) 或 [清华镜像](https://mirrors.tuna.tsinghua.edu.cn/anaconda/archive/)
+- 安装后验证: 终端输入 `conda --version`
+- 常用命令:
+  ```bash
+  conda create -n 环境名 python=3.9    # 创建环境
+  conda activate 环境名                 # 激活环境
+  conda deactivate                     # 退出环境
+  conda info --envs                    # 查看所有环境
+  conda install 包名                   # 在当前环境安装包
+  ```
+
+### 2. 创建项目环境
+
+```bash
+# 创建环境（Python 3.9）
+conda create -n PatternRecognition python=3.9 -y
+
+# 激活环境
+conda activate PatternRecognition
+
+# 安装 PyTorch（CUDA 11.8 版本，可根据 GPU 调整）
+pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu118
+
+# 安装项目依赖
+cd d:/Code/Tridet
+pip install -r requirements.txt
+
+# 安装 FiftyOne（用于 ActivityNet 视频下载）
+pip install fiftyone
+
+# 编译 C 扩展 NMS（需要 Visual Studio Build Tools）
+cd libs/utils
+python setup.py build_ext --inplace
 cd ../..
 ```
 
-4. Done! We are ready to get start!
+### 3. C 扩展编译要求
 
-## Data Preparation
+NMS C 扩展 (`nms_1d_cpu`) 编译需要:
+- Visual Studio 2015+ (MSVC 编译器)
+- 编译命令: `cd libs/utils && python setup.py build_ext --inplace`
 
-- We adpot the feature for **THUMOS14**, **ActivityNet** and **Epic-Kitchen** datasets
-  from ActionFormer repository ([see here](https://github.com/happyharrycn/actionformer_release)).
-  To use these features, please download them from their link and unpack them into the `./data` folder.
+如果缺少运行库和编译工具很可能会编译失败。
+如果编译失败，系统会自动回退到纯 Python 实现，但速度会慢上百倍，正常情况下评估脚本运行时间短则几十秒，长则也就几分钟，而纯python运行几个小时都跑不完。
 
-- For the **HACS** dataset, we use the [official I3D feature](http://hacs.csail.mit.edu/hacs_segments_features.zip) of
-  the RGB stream and the [SlowFast feautre](https://github.com/qinzhi-0110/Temporal-Context-Aggregation-Network-Pytorch)
-  from TCANet in our experiments.
-  Please unpack the I3D feature into `./data/hacs/i3d_feature` and the SlowFast feature
-  into `./data/hacs/slowfast_feature`. We provide processed
-  annotation json files for the I3D feature and the SlowFast feature in the `./data/hacs/annotations` folder.
-- The folder structure for `./data/hacs/i3d_feature` should be as follows:
-  ```
-  ./data/hacs/i3d_feature
-  |
-  |───training/
-  │    └───xxx.npy
-  │    └───...
-  └───validation/
-  │    └───xxx.npy
-  │    └───...
-  └───testing/
-  │    └───xxx.npy
-  │    └───...
-  ```
-- The folder structure for `./data/hacs/slowfast_feature` should be as follows:
-  ```
-  ./data/hacs/slowfast_feature
-  |
-  |───training/
-  │    └───xxx.pkl
-  │    └───...
-  └───validation/
-  │    └───xxx.pkl
-  │    └───...
+到这个网址下载Visual Studio Installer
+https://visualstudio.microsoft.com/zh-hans/vs/older-downloads/
+下载安装后打开选择安装Visual Studio生成工具，注意安装工作负荷，选择使用C++的桌面开发，除默认选项外注意勾选倒数第三个MSVC v143，这是核心编译工具。
 
-  ```
+### 4. 数据集准备
 
-## Quick Start
+- **特征文件** (`.npy`): 从 [ActionFormer 仓库](https://github.com/happyharrycn/actionformer_release) 下载，放到 `./data/` 目录
+- **原始视频**: 运行 `python download_activitynet.py --test` 下载到 `D:\Code\ActivityNet\anet_video`
 
-We provide a list of scripts that allow you to reproduce our results with just one click. These scripts are located in
-the `./tools` folder and include:
+## Git 协作规范
 
-- thumos_i3d_script.sh
-- epic_noun_slowfast_script.sh
-- epic_verb_slowfast_script.sh
-- hacs_slowfast_script.sh
-- ant_tsp_script.sh
+### 基本流程
 
-To easily reproduce our results, simply run the following command:
+```bash
+# 1. 拉取最新代码
+git pull origin master
 
-```shell
-bash SCRIPT_PATH GPU_NUM
+# 2. 查看状态
+git status
+
+# 3. 添加改动
+git add <文件>
+
+# 4. 提交
+git commit -m "类型: 简述"
+
+# 5. 推送
+git push origin master
 ```
 
-For example, if you want to train and eval our model on THUMOS14 dataset using the first GPU on you machine, you can
-run:
+### Commit 消息规范
 
-```shell
-bash tools/thumos_i3d_script.sh 0
-```
-
-The mean average precision (mAP) results for each dataset are:
-
-| Dataset  | 0.3   | 0.4   | 0.5   | 0.6   | 0.7   | Avg   |
-|----------|-------|-------|-------|-------|-------|-------|
-| THUMOS14 | 83.62 | 80.07 | 72.94 | 62.35 | 47.35 | 69.27 |
-
-| Dataset           | 0.1   | 0.2   | 0.3   | 0.4   | 0.5   | Avg   |
-|-------------------|-------|-------|-------|-------|-------|-------|
-| EPIC-KITCHEN-noun | 27.38 | 26.28 | 24.60 | 22.23 | 18.28 | 23.76 |
-
-| Dataset           | 0.1   | 0.2   | 0.3   | 0.4   | 0.5   | Avg   |
-|-------------------|-------|-------|-------|-------|-------|-------|
-| EPIC-KITCHEN-verb | 28.72 | 27.57 | 26.19 | 24.26 | 20.83 | 25.51 |
-
-| Dataset | 0.5   | 0.75  | 0.95  | Avg   |
-|---------|-------|-------|-------|-------|
-| HACS    | 56.90 | 39.33 | 11.24 | 38.69 |
-
-| Dataset     | 0.5   | 0.75  | 0.95 | Avg   |
-|-------------|-------|-------|------|-------|
-| ActivityNet | 54.71 | 38.01 | 8.35 | 36.77 |
-
-*There has been a slight improvement in the results of some datasets compared to those reported in the paper.
-*Note: We conduct all our experiments on a single A100-40G GPU and the training results may vary depending on the type of GPU used.
-
-## Test
-
-We offer pre-trained models for each dataset, which you can download the chechpoints
-from [Google Drive](https://drive.google.com/drive/folders/1eVROG6z-vHtm4AnXsh4N8ruUKkAidLqZ?usp=sharing). The command
-for test is
-
-```shell
-python eval.py ./configs/CONFIG_FILE PATH_TO_CHECKPOINT
-```
-
-## Contact
-
-If you have any questions about the code, feel free to contact shidingfeng at buaa dot edu dot cn.
-
-## References
-
-If you find this work helpful, please consider citing our paper
+采用简洁的中文/英文格式:
 
 ```
-@inproceedings{shi2023tridet,
-  title={TriDet: Temporal Action Detection with Relative Boundary Modeling},
-  author={Shi, Dingfeng and Zhong, Yujie and Cao, Qiong and Ma, Lin and Li, Jia and Tao, Dacheng},
-  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
-  pages={18857--18866},
-  year={2023}
+类型: 简述改动内容
+```
+
+**类型**:
+- `feat` — 新功能
+- `fix` — Bug 修复
+- `docs` — 文档变更
+- `refactor` — 代码重构
+- `chore` — 杂项（依赖更新、配置调整等）
+
+**示例**:
+```
+feat: 添加重叠动作检测分析模块
+fix: C扩展nms_1d_cpu导入失败
+docs: 更新 README 项目结构说明
+```
+
+### 注意事项
+
+- **Push 前先 pull**，避免冲突
+- **不要提交大文件**: `ckpt/`、`*.pth.tar`、`*.pkl`、`__pycache__/` 已在 `.gitignore`
+- 发现有冲突时，与组员沟通协调解决
+- 当前采用 **单分支 master 协作**，不强制 feature branch 流程
+
+## AI Agent 开发环境配置
+
+本项目推荐使用 **VSCode + Claude Code 插件 + DeepSeek API** 搭建 AI 辅助开发环境。
+
+### 为什么用 Claude Code？
+
+Claude Code 是 Anthropic 推出的 AI 编程助手，可以:
+- 理解和修改项目代码
+- 执行终端命令（训练、评估等）
+- 搜索和分析代码库
+- 生成文档和报告
+
+本项目的开发（包括基线复现、代码修改、文档编写）全程在 Claude Code 协助下完成。
+
+### 配置步骤
+
+**1. 安装 VSCode 扩展**
+
+在 VSCode 扩展商店搜索 `Claude Code` 并安装。
+
+**2. 获取 DeepSeek API Key**
+
+- 注册 [DeepSeek 开放平台](https://platform.deepseek.com/)
+- 在 API Keys 页面创建 API Key
+- 充值（DeepSeek 价格较低，个人开发通常每月几十元）
+
+**3. 配置 Claude Code**
+
+打开 VSCode 设置 (`settings.json`)，添加:
+
+```json
+{
+  "claudeCode.anthropicBaseUrl": "https://api.deepseek.com/anthropic",
+  "claudeCode.primaryApiKey": "你的DeepSeek-API-Key",
+  "claudeCode.model": "deepseek-v4-pro"
 }
 ```
- 
+
+**4. 重启 VSCode**
+
+配置完成后重启 VSCode，侧边栏会出现 Claude Code 图标。在输入框中即可与 AI Agent 对话。
+
+### 使用示例
+
+在 Claude Code 对话框中:
+- `跑一下 THUMOS14 的评估` — AI 会自动执行评估命令
+- `这段代码有什么问题` (选中代码) — AI 会分析并给出修改建议
+- `帮我在 analysis/ 下新建错误分析脚本` — AI 会创建完整的分析脚本
+
+### 配置视频教程
+
+B站详细配置演示: [BV1ia9UBPESQ](https://www.bilibili.com/video/BV1ia9UBPESQ/)
+
+## 快速开始
+
+### 训练
+
+```bash
+conda activate PatternRecognition
+
+# THUMOS14
+python train.py ./configs/thumos_i3d.yaml --output thumos_baseline
+
+# ActivityNet (需要先准备好 TSP 特征)
+python train.py ./configs/anet_tsp.yaml --output anet_baseline
+```
+
+### 评估
+
+```bash
+# THUMOS14
+python eval.py ./configs/thumos_i3d.yaml ./ckpt/thumos_baseline/
+
+# ActivityNet
+python eval.py ./configs/anet_tsp.yaml ./ckpt/anet_baseline/
+```
+
+### 下载原始视频
+
+```bash
+# 测试模式: 每类下载 1 个视频
+python download_activitynet.py --test
+
+# 正式下载: 每类 5 个
+python download_activitynet.py --per-class 5
+```
+
+## 参考
+
+- TriDet 论文: [arXiv 2303.07347](https://arxiv.org/abs/2303.07347)
+- 原始代码: [dingfengshi/TriDet](https://github.com/dingfengshi/TriDet)
+- ActionFormer: [happyharrycn/actionformer_release](https://github.com/happyharrycn/actionformer_release)
