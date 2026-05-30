@@ -247,6 +247,27 @@ python download_activitynet.py --test
 python download_activitynet.py --per-class 5
 ```
 
+### 可视化：GT vs 预测对比
+
+`visualize.py` 根据 YouTube 视频 ID 自动匹配原始视频、预提取特征和标注，生成时间轴对比图。
+
+```bash
+# 1. 先生成预测结果 (pkl)
+python eval.py ./configs/anet_tsp.yaml ./ckpt/anet_tsp_baseline/ --saveonly
+
+# 2. 随机采样 10 个视频生成对比图
+python visualize.py --pkl ./ckpt/anet_tsp_baseline/eval_results.pkl --num-samples 10
+
+# 3. 指定单个视频
+python visualize.py --pkl ./ckpt/anet_tsp_baseline/eval_results.pkl --video-id sJFgo9H6zNo
+```
+
+输出 PNG 保存在 `./vis_output/` 下，上排为视频截图（等距抽取 5 帧），下排为时间轴：
+- **绿色条** — Ground Truth 标注段
+- **红色条** — 模型预测段（透明度随置信度变化，标注分数）
+
+三者映射关系: 标注 key (youtube_id) → 特征 `v_{id}.npy` → 视频 `v_{id}.mp4`
+
 ## 参考
 
 - TriDet 论文: [arXiv 2303.07347](https://arxiv.org/abs/2303.07347)
