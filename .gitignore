@@ -11,10 +11,14 @@ ckpt/
 *.pth.tar
 *.pkl
 
+# Visualize output folder
+vis_output
+
 # IDE & tools
 .clawhub/
 .vscode/
 .idea/
+.claude/
 
 # Project docs (optional: keep if you want to share with teammates)
 # doc/
