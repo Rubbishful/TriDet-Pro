@@ -15,19 +15,25 @@ Tridet/
 │   └── anet_tsp.yaml           # ActivityNet（TSP, 200 类）
 ├── libs/
 │   ├── modeling/               # TriDet 模型实现
-│   │   ├── backbones.py        # SGP Backbone
-│   │   ├── blocks.py           # 基础模块
-│   │   ├── meta_archs.py       # 主模型（训练/推理/后处理）
-│   │   ├── necks.py            # FPN
-│   │   └── losses.py           # 分类/回归损失
+│   │   ├── backbones.py        # SGP / Conv Backbone
+│   │   ├── blocks.py           # 基础模块 (MaskedConv1D, SGPBlock, etc.)
+│   │   ├── meta_archs.py       # TriDet 主模型
+│   │   ├── necks.py            # FPN / FPNIdentity
+│   │   ├── loc_generators.py   # 锚点生成器
+│   │   ├── losses.py           # 分类/回归损失 (Focal, GIoU, DIoU)
+│   │   ├── models.py           # 注册表与 builder
+│   │   └── weight_init.py      # 权重初始化
 │   ├── datasets/               # 数据集加载
+│   ├── subject/                # 主体检测与跟踪 (YOLO + SORT)
 │   └── utils/                  # NMS、评估指标、训练工具
 ├── tools/                      # 一键训练+评估脚本
+├── scripts/                    # 工具脚本 (特征提取等)
 ├── doc/                        # 项目文档
-│   └── 开发规划V2.1.md          # 当前开发规划
+│   └── 分工与开发规划.md         # 当前分工与开发规划
 ├── log/                        # 训练/评估日志
 ├── ckpt/                       # 模型权重（不纳入 Git）
-└── analysis/                   # 错误分析模块（规划中）
+├── analysis/                   # 错误分析与消融实验
+└── experiments.md              # 实验记录与结果汇总
 ```
 
 ## 当前进度
@@ -44,11 +50,18 @@ Tridet/
 
 ### Phase 2: 改进与分析（进行中）
 
-详见 [doc/开发规划V2.1.md](doc/开发规划V2.1.md)
+详见 [分工与开发规划.md](doc/分工与开发规划.md)
 
-- 多实例 / 重叠动作分析
-- 主体检测关联
-- 端到端特征提取
+5 人分工，4 条改进主线：
+
+| 主线 | 目标 |
+|------|------|
+| 测试与消融分析 | 接口文档化、消融实验、错误分析 |
+| 主体检测与跟踪 | YOLO 人物检测 + 多目标跟踪关联 |
+| 端到端特征提取 | 可训练视频骨干替代预提取特征 |
+| 重叠动作与多主体 | 密集场景检测改进、Density-Aware NMS |
+
+另设审核与合并负责人，负责代码审查、整体模型改进（通道注意力 / BiFPN / 损失函数增强等）与最终集成。
 
 ## 环境配置
 
@@ -157,8 +170,9 @@ docs: 更新 README 项目结构说明
 
 - **Push 前先 pull**，避免冲突
 - **不要提交大文件**: `ckpt/`、`*.pth.tar`、`*.pkl`、`__pycache__/` 已在 `.gitignore`
-- 发现有冲突时，与组员沟通协调解决
-- 当前采用 **单分支 master 协作**，不强制 feature branch 流程
+- **分支策略**: 各改进方向在独立功能分支上开发，功能验证通过后合并到 master；master 始终保持可运行状态
+- **合并前验证**: 合并前需在 master 基础上重新评估，确认不破坏已有基线
+- 发现有冲突时，与组员沟通协调解决，切忌强行覆盖他人代码
 
 ## AI Agent 开发环境配置
 
@@ -273,3 +287,4 @@ python visualize.py --pkl ./ckpt/anet_tsp_baseline/eval_results.pkl --video-id s
 - TriDet 论文: [arXiv 2303.07347](https://arxiv.org/abs/2303.07347)
 - 原始代码: [dingfengshi/TriDet](https://github.com/dingfengshi/TriDet)
 - ActionFormer: [happyharrycn/actionformer_release](https://github.com/happyharrycn/actionformer_release)
+- [分工与开发规划](分工与开发规划.md) — 当前开发规划与分工详情
