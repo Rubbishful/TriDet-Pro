@@ -28,6 +28,11 @@ class SGPBackbone(nn.Module):
             k=1.5,  # the K in SGP
             init_conv_vars=1,  # initialization of gaussian variance for the weight in SGP
             use_abs_pe=False,  # use absolute position embedding
+            use_att=False,  # if to use channel attention in SGP blocks
+            att_type='SE',  # attention type: 'SE' or 'ECA'
+            att_position='fusion',  # where to insert: 'fusion' or 'mlp'
+            att_reduction=16,  # reduction ratio for SE
+            att_kernel_size=3,  # kernel size for ECA
     ):
         super().__init__()
         assert len(arch) == 3
@@ -68,14 +73,18 @@ class SGPBackbone(nn.Module):
         self.stem = nn.ModuleList()
         for idx in range(arch[1]):
             self.stem.append(
-                SGPBlock(n_embd, 1, 1, n_hidden=sgp_mlp_dim, k=k, init_conv_vars=init_conv_vars))
+                SGPBlock(n_embd, 1, 1, n_hidden=sgp_mlp_dim, k=k, init_conv_vars=init_conv_vars,
+                         use_att=use_att, att_type=att_type, att_position=att_position,
+                         att_reduction=att_reduction, att_kernel_size=att_kernel_size))
 
         # main branch using transformer with pooling
         self.branch = nn.ModuleList()
         for idx in range(arch[2]):
             self.branch.append(SGPBlock(n_embd, self.sgp_win_size[1 + idx], self.scale_factor, path_pdrop=path_pdrop,
                                         n_hidden=sgp_mlp_dim, downsample_type=downsample_type, k=k,
-                                        init_conv_vars=init_conv_vars))
+                                        init_conv_vars=init_conv_vars,
+                                        use_att=use_att, att_type=att_type, att_position=att_position,
+                                        att_reduction=att_reduction, att_kernel_size=att_kernel_size))
         # init weights
         self.apply(self.__init_weights__)
 

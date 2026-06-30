@@ -207,7 +207,12 @@ class TriDet(nn.Module):
             use_trident_head,  # if use the Trident-head
             num_classes,  # number of action classes
             train_cfg,  # other cfg for training
-            test_cfg  # other cfg for testing
+            test_cfg,  # other cfg for testing
+            use_att=False,  # if to use channel attention in SGP blocks
+            att_type='SE',  # attention type: 'SE' or 'ECA'
+            att_position='fusion',  # where to insert: 'fusion' or 'mlp'
+            att_reduction=16,  # reduction ratio for SE
+            att_kernel_size=3,  # kernel size for ECA
     ):
         super().__init__()
         # re-distribute params to backbone / neck / head
@@ -282,7 +287,12 @@ class TriDet(nn.Module):
                     'sgp_win_size': self.sgp_win_size,
                     'use_abs_pe': use_abs_pe,
                     'k': k,
-                    'init_conv_vars': init_conv_vars
+                    'init_conv_vars': init_conv_vars,
+                    'use_att': use_att,
+                    'att_type': att_type,
+                    'att_position': att_position,
+                    'att_reduction': att_reduction,
+                    'att_kernel_size': att_kernel_size
                 }
             )
         else:
