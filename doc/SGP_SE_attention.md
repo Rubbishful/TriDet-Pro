@@ -13,7 +13,11 @@ SGP (Scale-expanded Global Perception) Block 是 TriDet 主干网络的核心构
   │
   ├─ 2. LayerNorm → out = self.ln(x)
   │
-  ├─ 3. 五分支并行计算:
+  ├─ 3. [SE 注入点 — pre_fusion 位置] → 见第 3 节
+  │     if att_position == 'pre_fusion': out = self.att(out)
+  │     在 5 分支 split 之前对通道做重标定，影响所有下游分支
+  │
+  ├─ 4. 五分支并行计算:
   │     ┌──────────────────────────────────────────────────────┐
   │     │ psi     = DepthwiseConv1d(out, kernel=K)              │  ← 局部时间模式
   │     │ fc      = DepthwiseConv1d(out, kernel=1)              │  ← 逐帧即时特征
@@ -23,7 +27,7 @@ SGP (Scale-expanded Global Perception) Block 是 TriDet 主干网络的核心构
   │     │ phi     = relu(DepthwiseConv1d(GAP(out), kernel=1))   │  ← 全局上下文向量
   │     └──────────────────────────────────────────────────────┘
   │
-  ├─ 4. 融合: out = fc × phi + (convw + convkw) × psi + out
+  ├─ 5. 融合: out = fc × phi + (convw + convkw) × psi + out
   │      ┌─────────────┬──────────────────────┬──────────┐
   │      │ fc × phi    │ 逐帧特征受全局上下文调制  │ "全局感知" │
   │      │ convw × psi │ 局部窗口通过 psi 门控     │ 精细时间  │
@@ -31,12 +35,10 @@ SGP (Scale-expanded Global Perception) Block 是 TriDet 主干网络的核心构
   │      │ + out       │ 残差连接                 │ 恒等通路   │
   │      └─────────────┴──────────────────────┴──────────┘
   │
-  ├─ 5. DropPath + 残差: out = x × mask + drop_path(out)
-  │
-  ├─ 6. [SE 注入点] → 见第 3 节
+  ├─ 6. DropPath + 残差: out = x × mask + drop_path(out)
   │
   ├─ 7. FFN: out = out + drop_path(MLP(GroupNorm(out)))
-  │      MLP = Conv1d(n_embd → 4×n_embd) → GELU → Conv1d(4×n_embd → n_embd)
+  │     MLP = Conv1d(n_embd → 4×n_embd) → GELU → Conv1d(4×n_embd → n_embd)
   │
   └─ 输出: out (B, C, T'), mask (B, 1, T')
 ```
@@ -85,13 +87,15 @@ SGP (Scale-expanded Global Perception) Block 是 TriDet 主干网络的核心构
 
 ## 3. SE 注意力注入位置分析
 
-### 3.1 当前实现: Fusion 位置
+### 3.1 原始实现: Fusion 位置 (已弃用)
+
+原实现将 SE 置于 5 分支融合 + DropPath 残差之后、FFN 之前：
 
 ```
 out = self.ln(x)
   → 五分支计算 → 融合
-  → out = x + drop_path(融合)
-  → out = self.att(out)     ← SE 在这里
+  → out = x * out_mask + drop_path(融合)
+  → out = self.att(out)     ← SE 原位置
   → FFN
 ```
 
@@ -104,17 +108,27 @@ out = self.ln(x)
 | 通道被增强 (>0.9) | 0.1% | 10-30% |
 | 方差 (std) | 0.020-0.188 | >0.3 |
 
-结论: **SE 层完全退化**。Sigmoid 输出全部 ≈0.5，等价于恒等变换。
+结论: **SE 层完全退化**。Sigmoid 输出全部 ≈0.5，等价于恒等变换。根源是融合后 `out = x + drop_path(融合)` 被 identity 路径主导（x 项远大于融合项），SE 的输入缺乏通道间差异性，梯度信号无法驱动 SE 学习。
 
-根因推测: 融合后的 `out` 已经过残差连接 `x + drop_path(融合)`，信号被 identity 主导（x 项远大于融合项），SE 的输入缺乏通道间差异性，梯度信号无法驱动 SE 学习有意义的注意力权重。
+### 3.2 当前实现: Pre-fusion 位置
 
-### 3.2 替代位置对比
+将 SE 前移到 LayerNorm 之后、5 分支 split 之前：
+
+```
+out = self.ln(x)
+  → out = self.att(out)     ← SE 新位置 (pre_fusion)
+  → 五分支计算 → 融合 → DropPath → FFN
+```
+
+LayerNorm 输出是归一化后的"纯净"特征，通道间保留了原始的差异化信息。在分流处理之前先做通道筛选，SE 的通道权重会通过 `psi`、`fc`、`convw`、`convkw` 四条路径传播，影响力覆盖整个 SGP 融合过程。
+
+### 3.3 三种位置对比
 
 ```
                     SGPBlock forward 流程
                     ═══════════════════════
 
-  x ──→ downsample ──→ LayerNorm ──┬──→ [A: Pre-fusion]    ← 新增
+  x ──→ downsample ──→ LayerNorm ──┬──→ [A: pre_fusion]    ← 当前实现
                                     │         ↓
                                     ├──→ psi, fc, convw, convkw, global_fc
                                     │         ↓
@@ -122,62 +136,111 @@ out = self.ln(x)
                                     │         ↓
                                     ├──→ x + drop_path(out)
                                     │         ↓
-                                    ├──→ [B: Fusion]        ← 当前位置
+                                    ├──→ [B: fusion]        ← 原位置 (已弃用)
                                     │         ↓
                                     ├──→ GroupNorm → MLP
                                     │         ↓
-                                    └──→ [C: MLP 后]        ← 已有选项
+                                    └──→ [C: mlp]           ← 备选
 ```
 
-| 位置 | 插入时机 | 输入特征特点 | 参数量 | 预期效果 |
-|---|---|---|---|---|
-| **A. Pre-fusion** | LN 后，分支 split 前 | 归一化后的干净特征，未经混合和残差叠加 | ~33K/block | 在信息分流前做通道筛选，影响所有 5 条分支。通道间差异大，SE 有充足的"原材料"学习 |
-| **B. Fusion** (当前) | 5 分支融合 + 残差后 | 已通过 `x + drop_path(融合)` 叠加，identity 主导 | ~33K/block | 已证实退化 — SE 学到接近恒等的权重 |
-| **C. MLP 后** (已有) | FFN 残差后 | 经过 MLP 非线性变换后 | ~33K/block | 与 fusion 类似，额外应用一次 SE，同样面对 identity 主导问题 |
+| 位置 | 插入时机 | 输入特征特点 | 状态 |
+|---|---|---|---|
+| **A. pre_fusion** | LN 后，分支 split 前 | 归一化后的干净特征，通道间差异大 | **当前使用** |
+| **B. fusion** | 5 分支融合 + 残差后 | 被 `x + drop_path(融合)` 的 identity 路径主导 | 已证实退化 |
+| **C. mlp** | FFN 残差后 | 经过 MLP 非线性变换 | 未测试，预计与 fusion 类似 |
 
-### 3.3 选择 Pre-fusion 的理由
+### 3.4 选择 Pre-fusion 的理由
 
-1. **信号质量最高**: LayerNorm 输出是归一化后的"纯净"特征，通道间保留了原始的差异化信息，SE 有足够的信号去学习通道重要性
-2. **影响力最大**: 一次通道重标定影响后续所有 5 条分支，以及整个 SGP 融合过程
-3. **最小改动**: 只需移动 `self.att()` 的调用位置，不增加参数量，不需要修改 SELayer 本身
-4. **直觉合理**: 在"分流处理"之前决定哪些通道更重要，符合注意力机制的直觉 — 先筛选信息，再分发处理
+1. **信号质量最高**: LayerNorm 输出的通道间保留了差异化信息，SE 有足够的信号去学习通道重要性，不会被残差连接的 identity 项淹没
+2. **影响力最大**: 一次通道重标定通过所有分支 (`psi`, `fc`, `convw`, `convkw`) 传播，影响整个 SGP 融合过程
+3. **最小改动**: 仅移动 `self.att()` 的调用位置，不增加参数量，不修改 SELayer 本身
+4. **直觉合理**: 在"分流处理"之前决定哪些通道更重要 — 先筛选信息，再分发到不同时间尺度处理
 
-### 3.4 潜在风险
+### 3.5 潜在风险
 
-- Pre-fusion 的 SE 权重如果趋向极端（饱和到 0 或 1），可能永久性阻断某些通道
-- 但由于有残差连接 `out = fc*phi + (convw+convkw)*psi + out`，被抑制的通道仍可通过恒等路径传递，不会完全丢失
+- Pre-fusion 的 SE 权重如果趋向极端（饱和到 0 或 1），可能永久性阻断某些通道进入分支处理
+- 但由于融合阶段有残差连接 `out = fc*phi + (convw+convkw)*psi + out`，被抑制的通道仍可通过恒等路径传递，不会完全丢失
 
 ---
 
-## 4. 实现要点
+## 4. 实现细节
 
-### 修改文件
+### 4.1 修改文件清单
 
-| 文件 | 改动 |
+| 文件 | 改动内容 |
 |---|---|
-| `libs/modeling/blocks.py` | SGPBlock: `att_position='pre_fusion'` 支持 |
-| `libs/modeling/backbones.py` | 无改动（已透传 `att_position`） |
-| `libs/modeling/meta_archs.py` | 无改动（已透传 `att_position`） |
-| `libs/core/config.py` | 注释更新 |
-| 配置文件 `configs/*.yaml` | 设置 `att_position: pre_fusion` |
+| `libs/modeling/blocks.py` | `att_position='pre_fusion'` 支持：LN 后调用 `self.att(out)`，调整 `att_channels` 为 `n_embd` |
+| `libs/modeling/backbones.py` | 无逻辑改动（已透传 `att_position`），仅更新注释 |
+| `libs/modeling/meta_archs.py` | 无逻辑改动（已透传 `att_position`），仅更新注释 |
+| `libs/core/config.py` | 默认值注释更新为 `'pre_fusion' \| 'fusion' \| 'mlp'` |
+| `configs/thumos_i3d_se.yaml` | `att_position: pre_fusion`，`batch_size: 8`，`learning_rate: 0.0002` |
 
-### 关键代码逻辑
+### 4.2 SGPBlock 核心代码
 
 ```python
-# SGPBlock.__init__
+# __init__ — 根据位置选择 SE 输入通道数
 if att_position == 'pre_fusion':
-    att_channels = n_embd   # LN 输出维度
+    att_channels = n_embd        # LN 输出始终是 n_embd
 else:
     att_channels = n_out if n_out is not None else n_embd
 
-# SGPBlock.forward
+# forward — 三个互斥的 SE 调用位置
 out = self.ln(x)
+
 if self.att_position == 'pre_fusion':
-    out = self.att(out)     # 在分支执行前重标定通道
-# ... 五分支计算和融合 ...
+    out = self.att(out)          # ① LN 后、分支前 (当前使用)
+
+psi = self.psi(out)              # 重标定后的特征流入所有分支
+fc = self.fc(out)
+convw = self.convw(out)
+convkw = self.convkw(out)
+phi = torch.relu(self.global_fc(out.mean(dim=-1, keepdim=True)))
+out = fc * phi + (convw + convkw) * psi + out
+
+out = x * out_mask + self.drop_path_out(out)
+
 if self.att_position == 'fusion':
-    out = self.att(out)     # 融合后重标定 (原行为)
-# ... FFN ...
+    out = self.att(out)          # ② 融合后 (原行为，已弃用)
+
+out = out + self.drop_path_mlp(self.mlp(self.gn(out)))
+
 if self.att_position == 'mlp':
-    out = self.att(out)     # MLP 后重标定 (原行为)
+    out = self.att(out)          # ③ MLP 后 (备选)
 ```
+
+### 4.3 训练配置
+
+```yaml
+# configs/thumos_i3d_se.yaml (当前)
+model:
+  use_att: True
+  att_type: SE
+  att_position: pre_fusion     # LayerNorm 后注入
+  att_reduction: 16
+loader:
+  batch_size: 8                # 显存利用率 ~80% (基于 40% @ batch_size=4 估算)
+  num_workers: 4
+opt:
+  learning_rate: 0.0002        # 线性缩放: 0.0001 × (8/4)
+  warmup_epochs: 20
+  epochs: 50
+  weight_decay: 0.025
+```
+
+### 4.4 验证结果
+
+使用 `tools/inspect_se_weights.py` 验证 pre_fusion 实现正确性：
+
+```
+Runtime Weight Distribution (pre_fusion 位置, epoch_069 权重)
+Layer          Mean    Std    <0.1    >0.9
+branch.0.att   0.497   0.056  0.0%    0.0%
+branch.1.att   0.498   0.082  0.0%    0.0%
+branch.2.att   0.497   0.107  0.0%    0.0%
+branch.3.att   0.495   0.064  0.0%    0.0%
+branch.4.att   0.497   0.076  0.0%    0.0%
+stem.0.att     0.499   0.048  0.0%    0.0%
+stem.1.att     0.497   0.174  0.8%    0.7%
+```
+
+注意: 以上使用的 checkpoint 是 fusion 位置训练的旧权重，SE 本身是退化的（mean≈0.5）。pre_fusion 仅改变 SE 的调用位置，不改变权重结构。**需要重新训练**才能评估 pre_fusion 是否能让 SE 学到有意义的通道注意力。
