@@ -261,7 +261,9 @@ def train_one_epoch(
         curr_epoch,
         model_ema=None,
         clip_grad_l2norm=-1,
-        print_freq=20
+        print_freq=20,
+        grad_accum=1,
+        return_losses=False,
 ):
     """Training the model for one epoch"""
     # set up meters
@@ -272,27 +274,31 @@ def train_one_epoch(
     # switch to train mode
     model.train()
 
+    # optional: collect per-step loss records for external logging / plotting
+    loss_records = [] if return_losses else None
+
     # main training loop
     print("\n[Train]: Epoch {:d} started".format(curr_epoch))
     start = time.time()
+    optimizer.zero_grad(set_to_none=True)
     for iter_idx, video_list in enumerate(train_loader, 0):
-        # zero out optim
-        optimizer.zero_grad(set_to_none=True)
         # forward / backward the model
         losses = model(video_list)
-        losses['final_loss'].backward()
-        # gradient cliping (to stabilize training if necessary)
-        if clip_grad_l2norm > 0.0:
-            torch.nn.utils.clip_grad_norm_(
-                model.parameters(),
-                clip_grad_l2norm
-            )
-        # step optimizer / scheduler
-        optimizer.step()
-        scheduler.step()
+        (losses['final_loss'] / grad_accum).backward()
 
-        if model_ema is not None:
-            model_ema.update(model)
+        # step after accumulation steps
+        if (iter_idx + 1) % grad_accum == 0:
+            if clip_grad_l2norm > 0.0:
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                    clip_grad_l2norm
+                )
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad(set_to_none=True)
+
+            if model_ema is not None:
+                model_ema.update(model)
 
         # printing (only check the stats when necessary to avoid extra cost)
         if (iter_idx != 0) and (iter_idx % print_freq) == 0:
@@ -312,6 +318,13 @@ def train_one_epoch(
             # log to tensor board
             lr = scheduler.get_last_lr()[0]
             global_step = curr_epoch * num_iters + iter_idx
+
+            # collect per-step record
+            if return_losses:
+                record = {'epoch': curr_epoch, 'iteration': global_step}
+                for key, value in losses.items():
+                    record[key] = value.item()
+                loss_records.append(record)
 
             # print to terminal
             block1 = 'Epoch: [{:03d}][{:05d}/{:05d}]'.format(
@@ -336,6 +349,8 @@ def train_one_epoch(
     # finish up and print
     lr = scheduler.get_last_lr()[0]
     print("[Train]: Epoch {:d} finished with lr={:.8f}\n".format(curr_epoch, lr))
+    if return_losses:
+        return loss_records
     return
 
 
