@@ -32,8 +32,19 @@ class ActivityNetDataset(Dataset):
         file_ext,         # feature file extension if any
         force_upsampling  # force to upsample to max_seq_len
     ):
-        # file path
-        assert os.path.exists(feat_folder) and os.path.exists(json_file)
+        # file path [CHANGED] 将裸断言替换为友好错误提示
+        if not os.path.exists(feat_folder):
+            raise FileNotFoundError(
+                f"特征文件夹不存在: {feat_folder}\n"
+                "请先下载 ActivityNet 数据集的特征文件（TSP features），\n"
+                "并修改 configs/anet_tsp.yaml 中的 feat_folder 路径。"
+            )
+        if not os.path.exists(json_file):
+            raise FileNotFoundError(
+                f"标注文件不存在: {json_file}\n"
+                "请先下载 ActivityNet 数据集的标注文件（annotations），\n"
+                "并修改 configs/anet_tsp.yaml 中的 json_file 路径。"
+            )
         assert isinstance(split, tuple) or isinstance(split, list)
         assert crop_ratio == None or len(crop_ratio) == 2
         self.feat_folder = feat_folder

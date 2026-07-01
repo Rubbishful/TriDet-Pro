@@ -33,9 +33,9 @@ import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 
 # ── 路径常量 ───────────────────────────────────────────────
-ANNOTATION_FILE = r"D:\Code\ActivityNet\anet_1.3\annotations\anet1.3_tsp_filtered.json"
-VIDEO_DIR = r"D:\Code\ActivityNet\anet_video\activitynet-100\validation\data"
-FEATURE_DIR = r"D:\Code\ActivityNet\anet_1.3\tsp_features"
+ANNOTATION_FILE = r"E:\Code\ActivityNet\anet_1.3\annotations\anet1.3_tsp_filtered.json"
+VIDEO_DIR = r"E:\Code\ActivityNet\anet_video\activitynet-100\validation\data"
+FEATURE_DIR = r"E:\Code\ActivityNet\anet_1.3\tsp_features"
 
 # 可视化配色
 GT_COLOR = "#2ecc71"  # 绿色 — Ground Truth

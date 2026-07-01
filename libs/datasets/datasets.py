@@ -29,6 +29,7 @@ def make_data_loader(dataset, is_training, generator, batch_size, num_workers):
         shuffle=is_training,
         drop_last=is_training,
         generator=generator,
-        persistent_workers=True
+        # [CHANGED] Windows 下 num_workers>0 可能卡死，persistent 仅多 worker 时启用
+        persistent_workers=(num_workers > 0)
     )
     return loader

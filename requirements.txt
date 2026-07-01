@@ -1,10 +1,13 @@
 h5py==3.7.0
 joblib==1.1.1
 matplotlib==3.5.2
-numpy==1.21.2
+numpy>=1.21
 pandas==1.4.2
 PyYAML==6.0
 scikit_learn==1.2.2
 scipy==1.8.1
-opencv-python==4.13.0
+opencv-python>=4.10
 setuptools==58.0.4
+# [CHANGED] ActivityNet 视频下载脚本 (download_activitynet.py) 所需的额外依赖
+# 若不需要下载原始视频，可跳过 fiftyone
+fiftyone>=1.14

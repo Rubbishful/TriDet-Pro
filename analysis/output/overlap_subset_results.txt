@@ -1,0 +1,5 @@
+Overlap tIoU > 0.3
+Ov videos=43, instances=834
+All mAP: 0.00%
+Overlap mAP: 0.00%
+Non-Overlap mAP: 0.00%

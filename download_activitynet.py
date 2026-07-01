@@ -5,7 +5,7 @@ ActivityNet 200 全量视频下载脚本
 视频存储在 D:\Code\ActivityNet\anet_video，由 FiftyOne/yt-dlp 从 YouTube 拉取。
 
 用法:
-    conda activate PatternRecognition
+    conda activate tridet
     python download_activitynet.py --test          # 测试：每类 1 个视频
     python download_activitynet.py                  # 正式：每类 5 个（默认）
     python download_activitynet.py --per-class 10   # 每类 10 个
@@ -28,8 +28,16 @@ import argparse
 import urllib.request
 from pathlib import Path
 
-import fiftyone as fo
-import fiftyone.zoo as foz
+# [CHANGED] 将 fiftyone 导入包裹在 try/except 中，提供安装指引
+try:
+    import fiftyone as fo
+    import fiftyone.zoo as foz
+except ImportError as e:
+    print(f"错误: 缺少依赖包 {e.name if hasattr(e, 'name') else 'fiftyone'}。")
+    print("此脚本需要 fiftyone 来下载 ActivityNet 视频。")
+    print("请运行: pip install fiftyone")
+    print("或: conda activate tridet && pip install fiftyone")
+    sys.exit(1)
 
 # ---------------------------------------------------------------------------
 # 全量 200 类别表（来自 ActivityNet 1.3 annotations）
@@ -94,7 +102,7 @@ ALL_CLASSES = [
 # 默认配置
 # ---------------------------------------------------------------------------
 DATASET_NAME = "activitynet-200"
-ZOO_DIR = r"D:\Code\ActivityNet\anet_video"
+ZOO_DIR = r"E:\Code\ActivityNet\anet_video"
 CHECKPOINT_FILE = os.path.join(ZOO_DIR, "download_checkpoint.json")
 DEFAULT_SPLIT = "validation"
 DEFAULT_PER_CLASS = 5
