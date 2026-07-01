@@ -196,7 +196,7 @@ class SGPBlock(nn.Module):
             init_conv_vars=1,  # init gaussian variance for the weight
             use_att=False,  # if to use channel attention
             att_type='SE',  # attention type: 'SE' or 'ECA'
-            att_position='fusion',  # where to insert: 'fusion' or 'mlp'
+            att_position='fusion',  # 'pre_fusion' | 'fusion' | 'mlp'
             att_reduction=16,  # reduction ratio for SE
             att_kernel_size=3,  # kernel size for ECA
     ):
@@ -267,7 +267,10 @@ class SGPBlock(nn.Module):
         self.act = act_layer()
 
         # build channel attention if requested
-        att_channels = n_out if n_out is not None else n_embd
+        if att_position == 'pre_fusion':
+            att_channels = n_embd
+        else:
+            att_channels = n_out if n_out is not None else n_embd
         if use_att:
             if att_type == 'SE':
                 self.att = SELayer(att_channels, reduction=att_reduction)
@@ -304,6 +307,10 @@ class SGPBlock(nn.Module):
         ).detach()
 
         out = self.ln(x)
+
+        if self.att_position == 'pre_fusion':
+            out = self.att(out)
+
         psi = self.psi(out)
         fc = self.fc(out)
         convw = self.convw(out)
@@ -312,7 +319,10 @@ class SGPBlock(nn.Module):
         out = fc * phi + (convw + convkw) * psi + out
 
         out = x * out_mask + self.drop_path_out(out)
-        out = self.att(out)
+
+        if self.att_position == 'fusion':
+            out = self.att(out)
+
         # FFN
         out = out + self.drop_path_mlp(self.mlp(self.gn(out)))
         if self.att_position == 'mlp':

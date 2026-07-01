@@ -91,7 +91,7 @@ DEFAULTS = {
         # channel attention in SGP blocks
         "use_att": False,  # if to use channel attention (SE/ECA)
         "att_type": 'SE',  # attention type: 'SE' or 'ECA'
-        "att_position": 'fusion',  # where to insert: 'fusion' or 'mlp'
+        "att_position": 'fusion',  # 'pre_fusion' | 'fusion' | 'mlp'
         "att_reduction": 16,  # reduction ratio for SE
         "att_kernel_size": 3,  # kernel size for ECA
 
