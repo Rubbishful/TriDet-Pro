@@ -1,3 +1,6 @@
+import os as _os
+_os.environ.setdefault('KMP_DUPLICATE_LIB_OK', 'TRUE')
+
 """
 Train with 90/10 train/val split and progressive epoch search.
 
@@ -5,11 +8,14 @@ Train in blocks of --step epochs. After each block, evaluate validation loss
 and check the stopping criterion: stop when loss improvement is < threshold
 for --patience consecutive blocks, or loss regresses.
 
+Outputs loss curves and CSV logs to ./train_output/.
+
 Usage:
-  python tools/train_cv.py ./configs/thumos_i3d_se.yaml --step 10
+  python tools/train_cv.py ./configs/thumos_i3d_se.yaml --step 10 --batch-size 4 --grad-accum 1
 """
 
 import argparse
+import csv
 import json
 import os
 import sys
@@ -33,6 +39,8 @@ from libs.utils import (
     fix_random_seed, make_optimizer, make_scheduler,
     train_one_epoch,
 )
+
+TRAIN_OUTPUT = PROJ_ROOT / 'train_output'
 
 
 def train_val_split(n_samples, val_ratio=0.1, seed=42):
@@ -72,10 +80,66 @@ def check_early_stop(block_losses, threshold=0.01, patience=3):
     return stagnation_count >= patience
 
 
+def save_loss_csv(all_records, filepath):
+    """Save per-iteration training loss records to CSV."""
+    if not all_records:
+        return
+    keys = ['epoch', 'iteration', 'final_loss', 'cls_loss', 'reg_loss']
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=keys, extrasaction='ignore')
+        writer.writeheader()
+        writer.writerows(all_records)
+
+
+def plot_loss_curves(loss_records, block_epochs, block_losses, save_dir, tag=''):
+    """Generate loss curve plots and save to save_dir."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Plot 1: Training loss per iteration
+    ax1 = axes[0]
+    if loss_records:
+        iters = [r['iteration'] for r in loss_records]
+        final = [r['final_loss'] for r in loss_records]
+        ax1.plot(iters, final, 'b-', alpha=0.5, linewidth=0.5, label='final_loss')
+        if 'cls_loss' in loss_records[0]:
+            cls_vals = [r['cls_loss'] for r in loss_records]
+            ax1.plot(iters, cls_vals, 'g-', alpha=0.3, linewidth=0.3, label='cls_loss')
+        if 'reg_loss' in loss_records[0]:
+            reg_vals = [r['reg_loss'] for r in loss_records]
+            ax1.plot(iters, reg_vals, 'r-', alpha=0.3, linewidth=0.3, label='reg_loss')
+        ax1.set_xlabel('Global Iteration')
+        ax1.set_ylabel('Loss')
+        ax1.set_title('Training Loss' + (f' [{tag}]' if tag else ''))
+        ax1.legend(fontsize=7)
+        ax1.grid(True, alpha=0.3)
+
+    # Plot 2: Validation loss per block
+    ax2 = axes[1]
+    if block_epochs and block_losses:
+        ax2.plot(block_epochs, block_losses, 'ro-', markersize=6, label='val_loss')
+        ax2.set_xlabel('Epoch')
+        ax2.set_ylabel('Val Loss')
+        ax2.set_title('Validation Loss' + (f' [{tag}]' if tag else ''))
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    fig_path = os.path.join(save_dir, f'loss_curves_{tag}.png' if tag else 'loss_curves.png')
+    plt.savefig(fig_path, dpi=150)
+    plt.close()
+    return fig_path
+
+
 def train_with_search(cfg, train_indices, val_indices, args):
     """Train with block-wise validation and early stopping."""
     print(f"\n{'='*60}")
     print(f"  Train samples: {len(train_indices)}, Val samples: {len(val_indices)}")
+    print(f"  Batch size: {cfg['loader']['batch_size']}, Grad accum: {args.grad_accum}")
+    print(f"  Effective batch size: {cfg['loader']['batch_size'] * args.grad_accum}")
     print(f"{'='*60}")
 
     rng_gen = fix_random_seed(cfg['init_rand_seed'], include_cuda=True)
@@ -107,17 +171,26 @@ def train_with_search(cfg, train_indices, val_indices, args):
     best_val_loss = float('inf')
     best_epoch = 0
     total_epochs = cfg['opt']['epochs'] + cfg['opt']['warmup_epochs']
+    all_loss_records = []
+
+    # build output tag
+    cfg_name = os.path.basename(args.config).replace('.yaml', '')
+    tag = f"{cfg_name}_b{cfg['loader']['batch_size']}_ga{args.grad_accum}"
 
     for block_start in range(0, total_epochs, args.step):
         block_end = min(block_start + args.step, total_epochs)
 
         for epoch in range(block_start, block_end):
-            train_one_epoch(
+            records = train_one_epoch(
                 train_loader, model, optimizer, scheduler, epoch,
                 model_ema=model_ema,
                 clip_grad_l2norm=cfg['train_cfg']['clip_grad_l2norm'],
                 print_freq=args.print_freq,
+                grad_accum=args.grad_accum,
+                return_losses=True,
             )
+            if records:
+                all_loss_records.extend(records)
 
         val_loss = compute_val_loss(model_ema.module, val_loader)
         block_losses.append(val_loss)
@@ -137,6 +210,13 @@ def train_with_search(cfg, train_indices, val_indices, args):
         marker = " *BEST*" if is_best else ""
         print(f"Block {n_blocks} (epoch {block_end:3d}): "
               f"val_loss={val_loss:.4f}  {imp_str}{marker}")
+
+        # save intermediate CSV & plot after each block
+        TRAIN_OUTPUT.mkdir(parents=True, exist_ok=True)
+        csv_path = TRAIN_OUTPUT / f'loss_records_{tag}.csv'
+        save_loss_csv(all_loss_records, str(csv_path))
+        plot_loss_curves(all_loss_records, block_epochs, block_losses, str(TRAIN_OUTPUT), tag)
+        print(f"  [Loss plot & CSV updated] -> {TRAIN_OUTPUT}")
 
         if np.isnan(val_loss) or val_loss > 1e6:
             print("Loss unstable, stopping early.")
@@ -161,6 +241,16 @@ def train_with_search(cfg, train_indices, val_indices, args):
 
 def main(args):
     cfg = load_config(args.config)
+
+    # --- batch size override ---
+    if args.batch_size > 0:
+        old_bs = cfg['loader'].get('batch_size', 8)
+        cfg['loader']['batch_size'] = args.batch_size
+        print(f"[Setup] Batch size override: {old_bs} -> {args.batch_size}")
+        if args.grad_accum > 1:
+            effective = args.batch_size * args.grad_accum
+            print(f"[Setup] Gradient accumulation: {args.grad_accum} steps, "
+                  f"effective batch size = {effective}")
 
     if args.max_epochs > 0:
         total = args.max_epochs + cfg['opt']['warmup_epochs']
@@ -193,6 +283,8 @@ def main(args):
 
     result = train_with_search(cfg, train_idx, val_idx, args)
 
+    result['batch_size'] = cfg['loader']['batch_size']
+    result['grad_accum'] = args.grad_accum
     with open(exp_folder / 'result.json', 'w') as f:
         json.dump(result, f, indent=2)
 
@@ -202,6 +294,7 @@ def main(args):
     print(f"  Best loss:   {result['best_val_loss']:.4f}")
     print(f"  Stopped at:  {result['stopped_at_epoch']}")
     print(f"  Results saved to: {exp_folder}")
+    print(f"  Loss plots & CSV saved to: {TRAIN_OUTPUT}")
     print(f"{'='*60}")
 
 
@@ -221,5 +314,9 @@ if __name__ == '__main__':
                         help='consecutive stagnant blocks before stopping (default: 3)')
     parser.add_argument('--print-freq', default=10, type=int,
                         help='print frequency in iterations (default: 10)')
+    parser.add_argument('--batch-size', default=-1, type=int,
+                        help='override batch size from config, -1 to use config value')
+    parser.add_argument('--grad-accum', default=1, type=int,
+                        help='gradient accumulation steps (default: 1 = no accumulation)')
     args = parser.parse_args()
     main(args)
