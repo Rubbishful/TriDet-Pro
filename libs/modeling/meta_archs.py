@@ -207,7 +207,9 @@ class TriDet(nn.Module):
             use_trident_head,  # if use the Trident-head
             num_classes,  # number of action classes
             train_cfg,  # other cfg for training
-            test_cfg  # other cfg for testing
+            test_cfg,  # other cfg for testing
+            bifpn_num_repeats=1,  # number of BiFPN block repeats
+            bifpn_fusion_method='fast_norm',  # fast_norm | sum
     ):
         super().__init__()
         # re-distribute params to backbone / neck / head
@@ -299,16 +301,17 @@ class TriDet(nn.Module):
             )
 
         # fpn network: convs
-        assert fpn_type in ['fpn', 'identity']
-        self.neck = make_neck(
-            fpn_type,
-            **{
-                'in_channels': [embd_dim] * (backbone_arch[-1] + 1),
-                'out_channel': fpn_dim,
-                'scale_factor': scale_factor,
-                'with_ln': fpn_with_ln
-            }
-        )
+        assert fpn_type in ['fpn', 'identity', 'bifpn']
+        neck_kwargs = {
+            'in_channels': [embd_dim] * (backbone_arch[-1] + 1),
+            'out_channel': fpn_dim,
+            'scale_factor': scale_factor,
+            'with_ln': fpn_with_ln
+        }
+        if fpn_type == 'bifpn':
+            neck_kwargs['num_repeats'] = bifpn_num_repeats
+            neck_kwargs['fusion_method'] = bifpn_fusion_method
+        self.neck = make_neck(fpn_type, **neck_kwargs)
 
         # location generator: points
         self.point_generator = make_generator(

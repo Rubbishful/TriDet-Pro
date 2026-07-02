@@ -41,7 +41,7 @@ DEFAULTS = {
     "model": {
         # type of backbone (SGP | conv)
         "backbone_type": 'SGP',
-        # type of FPN (fpn | identity)
+        # type of FPN (fpn | identity | bifpn)
         "fpn_type": "identity",
         "backbone_arch": (2, 2, 5),
         # scale factor between pyramid levels
@@ -60,6 +60,9 @@ DEFAULTS = {
         "fpn_dim": 512,
         # if add ln at the end of fpn outputs
         "fpn_with_ln": True,
+        # BiFPN specific (only used when fpn_type == 'bifpn')
+        "bifpn_num_repeats": 1,
+        "bifpn_fusion_method": 'fast_norm',  # fast_norm | sum
         # feat dim for head
         "head_dim": 512,
         # kernel size for reg/cls/center heads

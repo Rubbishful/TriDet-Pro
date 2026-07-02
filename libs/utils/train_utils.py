@@ -12,6 +12,7 @@ import torch.optim as optim
 from .lr_schedulers import LinearWarmupMultiStepLR, LinearWarmupCosineAnnealingLR
 from .postprocessing import postprocess_results
 from ..modeling import MaskedConv1D, Scale, AffineDropPath, LayerNorm
+from ..modeling.necks import BiFPNFusion
 
 
 ################################################################################
@@ -84,6 +85,9 @@ def make_optimizer(model, optimizer_config):
                 no_decay.add(fpn)
             elif pn.endswith('rel_pe'):
                 # corner case for relative position encoding
+                no_decay.add(fpn)
+            elif pn.endswith('weights') and isinstance(m, BiFPNFusion):
+                # BiFPN fast normalized fusion weights (scalars)
                 no_decay.add(fpn)
 
     # validate that we considered every parameter
