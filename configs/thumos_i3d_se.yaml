@@ -31,7 +31,7 @@ model: {
   use_att: True,
   att_type: SE,
   att_position: pre_fusion,
-  att_reduction: 16,
+  att_reduction: 4,
 }
 opt: {
   learning_rate: 0.0002,

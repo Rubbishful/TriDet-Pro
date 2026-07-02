@@ -1,0 +1,714 @@
+python eval.py .\configs\thumos_i3d_se.yaml .\ckpt\thumos_i3d_se_prefusion\
+(PatternRecognition) PS D:\Code\Tridet> python eval.py .\configs\thumos_i3d_se.yaml .\ckpt\thumos_i3d_se_prefusion\
+{'dataset': {'crop_ratio': [0.9, 1.0],
+             'default_fps': None,
+             'downsample_rate': 1,
+             'feat_folder': 'D:/Code/THUMOS14/thumos/i3d_features',
+             'feat_stride': 4,
+             'file_ext': '.npy',
+             'file_prefix': None,
+             'force_upsampling': False,
+             'input_dim': 2048,
+             'json_file': 'D:/Code/THUMOS14/thumos/annotations/thumos14.json',
+             'max_seq_len': 2304,
+             'num_classes': 20,
+             'num_frames': 16,
+             'trunc_thresh': 0.5},
+ 'dataset_name': 'thumos',
+ 'devices': ['cuda:0'],
+ 'init_rand_seed': 1234567891,
+ 'loader': {'batch_size': 8, 'num_workers': 4},
+ 'model': {'att_kernel_size': 3,
+           'att_position': 'pre_fusion',
+           'att_reduction': 16,
+           'att_type': 'SE',
+           'backbone_arch': [2, 2, 5],
+           'backbone_type': 'SGP',
+           'boudary_kernel_size': 3,
+           'downsample_type': 'max',
+           'embd_dim': 512,
+           'embd_kernel_size': 3,
+           'embd_with_ln': True,
+           'fpn_dim': 512,
+           'fpn_type': 'identity',
+           'fpn_with_ln': True,
+           'head_dim': 512,
+           'head_kernel_size': 3,
+           'head_num_layers': 3,
+           'head_with_ln': True,
+           'init_conv_vars': 0,
+           'input_dim': 2048,
+           'input_noise': 0.0005,
+           'iou_weight_power': 0.2,
+           'k': 5,
+           'max_buffer_len_factor': 6.0,
+           'max_seq_len': 2304,
+           'n_sgp_win_size': 1,
+           'num_bins': 16,
+           'num_classes': 20,
+           'regression_range': [[0, 4],
+                                [4, 8],
+                                [8, 16],
+                                [16, 32],
+                                [32, 64],
+                                [64, 10000]],
+           'scale_factor': 2,
+           'sgp_mlp_dim': 768,
+           'test_cfg': {'duration_thresh': 0.05,
+                        'ext_score_file': None,
+                        'iou_threshold': 0.1,
+                        'max_seg_num': 2000,
+                        'min_score': 0.001,
+                        'multiclass_nms': True,
+                        'nms_method': 'soft',
+                        'nms_sigma': 0.5,
+                        'pre_nms_thresh': 0.001,
+                        'pre_nms_topk': 2000,
+                        'voting_thresh': 0.7},
+           'train_cfg': {'center_sample': 'radius',
+                         'center_sample_radius': 1.5,
+                         'clip_grad_l2norm': 1.0,
+                         'cls_prior_prob': 0.01,
+                         'dropout': 0.0,
+                         'droppath': 0.1,
+                         'head_empty_cls': [],
+                         'init_loss_norm': 100,
+                         'label_smoothing': 0.0,
+                         'loss_weight': 1.0},
+           'use_abs_pe': False,
+           'use_att': True,
+           'use_trident_head': True},
+ 'model_name': 'TriDet',
+ 'opt': {'epochs': 50,
+         'eta_min': 1e-08,
+         'learning_rate': 0.0002,
+         'momentum': 0.9,
+         'schedule_gamma': 0.1,
+         'schedule_steps': [],
+         'schedule_type': 'cosine',
+         'type': 'AdamW',
+         'warmup': True,
+         'warmup_epochs': 20,
+         'weight_decay': 0.025},
+ 'output_folder': './ckpt/',
+ 'test_cfg': {'duration_thresh': 0.05,
+              'ext_score_file': None,
+              'iou_threshold': 0.1,
+              'max_seg_num': 2000,
+              'min_score': 0.001,
+              'multiclass_nms': True,
+              'nms_method': 'soft',
+              'nms_sigma': 0.5,
+              'pre_nms_thresh': 0.001,
+              'pre_nms_topk': 2000,
+              'voting_thresh': 0.7},
+ 'train_cfg': {'center_sample': 'radius',
+               'center_sample_radius': 1.5,
+               'clip_grad_l2norm': 1.0,
+               'cls_prior_prob': 0.01,
+               'dropout': 0.0,
+               'droppath': 0.1,
+               'head_empty_cls': [],
+               'init_loss_norm': 100,
+               'label_smoothing': 0.0,
+               'loss_weight': 1.0},
+ 'train_split': ['validation'],
+ 'val_split': ['test']}
+=> loading checkpoint '.\ckpt\thumos_i3d_se_prefusion\epoch_069.pth.tar'
+Loading from EMA model ...
+
+Start testing model TriDet ...
+[NMS] Using C extension backend (nms_1d_cpu)
+Test: [00010/00212]     Time 0.94 (0.94)
+Test: [00020/00212]     Time 0.06 (0.50)
+Test: [00030/00212]     Time 0.06 (0.35)
+Test: [00040/00212]     Time 0.06 (0.28)
+[MetaArch] video #50: backbone+heads=38ms, inference+NMS=25ms (avg over 50 videos)
+Test: [00050/00212]     Time 0.06 (0.24)
+Test: [00060/00212]     Time 0.06 (0.21)
+Test: [00070/00212]     Time 0.05 (0.18)
+Test: [00080/00212]     Time 0.06 (0.17)
+Test: [00090/00212]     Time 0.06 (0.16)
+[MetaArch] video #100: backbone+heads=34ms, inference+NMS=23ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.15)
+Test: [00110/00212]     Time 0.08 (0.14)
+Test: [00120/00212]     Time 0.06 (0.13)
+Test: [00130/00212]     Time 0.06 (0.13)
+Test: [00140/00212]     Time 0.06 (0.12)
+[MetaArch] video #150: backbone+heads=33ms, inference+NMS=23ms (avg over 150 videos)
+Test: [00150/00212]     Time 0.05 (0.12)
+Test: [00160/00212]     Time 0.07 (0.12)
+Test: [00170/00212]     Time 0.08 (0.11)
+Test: [00180/00212]     Time 0.05 (0.11)
+Test: [00190/00212]     Time 0.07 (0.11)
+[MetaArch] video #200: backbone+heads=32ms, inference+NMS=23ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.05 (0.10)
+Test: [00210/00212]     Time 0.05 (0.10)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 12.9s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 82.52 (%)
+|tIoU = 0.40: mAP = 78.99 (%)
+|tIoU = 0.50: mAP = 71.45 (%)
+|tIoU = 0.60: mAP = 60.43 (%)
+|tIoU = 0.70: mAP = 45.05 (%)
+Avearge mAP: 67.69 (%)
+All done! Total time: 35.38 sec
+
+python .\tools\sweep_ckpts.py .\configs\thumos_i3d_se.yaml .\ckpt\thumos_i3d_se_prefusion\
+(PatternRecognition) PS D:\Code\Tridet> python .\tools\sweep_ckpts.py .\configs\thumos_i3d_se.yaml .\ckpt\thumos_i3d_se_prefusion\
+Found 14 checkpoints: epoch_005.pth.tar, epoch_010.pth.tar, epoch_015.pth.tar, epoch_020.pth.tar, epoch_025.pth.tar, epoch_030.pth.tar, epoch_035.pth.tar, epoch_040.pth.tar, epoch_045.pth.tar, epoch_050.pth.tar, epoch_055.pth.tar, epoch_060.pth.tar, epoch_065.pth.tar, epoch_069.pth.tar
+
+============================================================
+  Sweeping 14 checkpoints on ['test']
+  Config: .\configs\thumos_i3d_se.yaml
+============================================================
+
+
+[  1/ 14] epoch_005.pth.tar
+[NMS] Using C extension backend (nms_1d_cpu)
+Test: [00020/00212]     Time 0.53 (0.53)
+Test: [00040/00212]     Time 0.06 (0.29)
+[MetaArch] video #50: backbone+heads=39ms, inference+NMS=25ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.22)
+Test: [00080/00212]     Time 0.06 (0.18)
+[MetaArch] video #100: backbone+heads=34ms, inference+NMS=23ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.15)
+Test: [00120/00212]     Time 0.06 (0.14)
+Test: [00140/00212]     Time 0.06 (0.13)
+[MetaArch] video #150: backbone+heads=32ms, inference+NMS=23ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.06 (0.12)
+Test: [00180/00212]     Time 0.06 (0.11)
+[MetaArch] video #200: backbone+heads=32ms, inference+NMS=24ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.11)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 12.9s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 4.73 (%)
+|tIoU = 0.40: mAP = 2.78 (%)
+|tIoU = 0.50: mAP = 1.43 (%)
+|tIoU = 0.60: mAP = 0.61 (%)
+|tIoU = 0.70: mAP = 0.27 (%)
+Avearge mAP: 1.97 (%)
+  mAP=1.97%  time=32s  [saved to D:\Code\Tridet\eval_output]
+
+[  2/ 14] epoch_010.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.07)
+[MetaArch] video #50: backbone+heads=30ms, inference+NMS=28ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.05 (0.06)
+[MetaArch] video #100: backbone+heads=28ms, inference+NMS=26ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=29ms, inference+NMS=26ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.06)
+Test: [00180/00212]     Time 0.07 (0.06)
+[MetaArch] video #200: backbone+heads=28ms, inference+NMS=27ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 12.8s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 32.18 (%)
+|tIoU = 0.40: mAP = 23.26 (%)
+|tIoU = 0.50: mAP = 14.41 (%)
+|tIoU = 0.60: mAP = 6.47 (%)
+|tIoU = 0.70: mAP = 2.04 (%)
+Avearge mAP: 15.67 (%)
+  mAP=15.67%  time=21s  [saved to D:\Code\Tridet\eval_output]
+
+[  3/ 14] epoch_015.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.07)
+[MetaArch] video #50: backbone+heads=28ms, inference+NMS=30ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.07)
+Test: [00080/00212]     Time 0.06 (0.06)
+[MetaArch] video #100: backbone+heads=28ms, inference+NMS=28ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=28ms, inference+NMS=28ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.06)
+Test: [00180/00212]     Time 0.07 (0.07)
+[MetaArch] video #200: backbone+heads=28ms, inference+NMS=29ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.07 (0.07)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 13.2s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 55.75 (%)
+|tIoU = 0.40: mAP = 46.63 (%)
+|tIoU = 0.50: mAP = 34.38 (%)
+|tIoU = 0.60: mAP = 20.16 (%)
+|tIoU = 0.70: mAP = 9.51 (%)
+Avearge mAP: 33.29 (%)
+  mAP=33.29%  time=24s  [saved to D:\Code\Tridet\eval_output]
+
+[  4/ 14] epoch_020.pth.tar
+Test: [00020/00212]     Time 0.08 (0.08)
+Test: [00040/00212]     Time 0.06 (0.07)
+[MetaArch] video #50: backbone+heads=28ms, inference+NMS=32ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.07)
+Test: [00080/00212]     Time 0.06 (0.07)
+[MetaArch] video #100: backbone+heads=27ms, inference+NMS=30ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.07)
+Test: [00140/00212]     Time 0.07 (0.07)
+[MetaArch] video #150: backbone+heads=27ms, inference+NMS=30ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.07)
+Test: [00180/00212]     Time 0.08 (0.07)
+[MetaArch] video #200: backbone+heads=27ms, inference+NMS=32ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.07 (0.07)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 13.6s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.01s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 68.31 (%)
+|tIoU = 0.40: mAP = 59.99 (%)
+|tIoU = 0.50: mAP = 48.75 (%)
+|tIoU = 0.60: mAP = 33.93 (%)
+|tIoU = 0.70: mAP = 18.04 (%)
+Avearge mAP: 45.81 (%)
+  mAP=45.81%  time=27s  [saved to D:\Code\Tridet\eval_output]
+
+[  5/ 14] epoch_025.pth.tar
+Test: [00020/00212]     Time 0.08 (0.08)
+Test: [00040/00212]     Time 0.06 (0.07)
+[MetaArch] video #50: backbone+heads=28ms, inference+NMS=31ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.07)
+Test: [00080/00212]     Time 0.06 (0.07)
+[MetaArch] video #100: backbone+heads=27ms, inference+NMS=29ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.07)
+Test: [00140/00212]     Time 0.07 (0.07)
+[MetaArch] video #150: backbone+heads=27ms, inference+NMS=30ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.07)
+Test: [00180/00212]     Time 0.08 (0.07)
+[MetaArch] video #200: backbone+heads=27ms, inference+NMS=32ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.07 (0.07)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 13.8s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.01s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 75.98 (%)
+|tIoU = 0.40: mAP = 70.89 (%)
+|tIoU = 0.50: mAP = 59.57 (%)
+|tIoU = 0.60: mAP = 44.22 (%)
+|tIoU = 0.70: mAP = 26.13 (%)
+Avearge mAP: 55.36 (%)
+  mAP=55.36%  time=27s  [saved to D:\Code\Tridet\eval_output]
+
+[  6/ 14] epoch_030.pth.tar
+Test: [00020/00212]     Time 0.08 (0.08)
+Test: [00040/00212]     Time 0.06 (0.07)
+[MetaArch] video #50: backbone+heads=29ms, inference+NMS=31ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.07)
+Test: [00080/00212]     Time 0.06 (0.06)
+[MetaArch] video #100: backbone+heads=27ms, inference+NMS=29ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.07)
+Test: [00140/00212]     Time 0.07 (0.07)
+[MetaArch] video #150: backbone+heads=27ms, inference+NMS=30ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.07)
+Test: [00180/00212]     Time 0.07 (0.07)
+[MetaArch] video #200: backbone+heads=27ms, inference+NMS=31ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.07 (0.07)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 13.6s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 79.07 (%)
+|tIoU = 0.40: mAP = 73.81 (%)
+|tIoU = 0.50: mAP = 65.70 (%)
+|tIoU = 0.60: mAP = 49.69 (%)
+|tIoU = 0.70: mAP = 31.92 (%)
+Avearge mAP: 60.04 (%)
+  mAP=60.04%  time=27s  [saved to D:\Code\Tridet\eval_output]
+
+[  7/ 14] epoch_035.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.06)
+[MetaArch] video #50: backbone+heads=27ms, inference+NMS=29ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.10 (0.07)
+[MetaArch] video #100: backbone+heads=37ms, inference+NMS=37ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.14 (0.09)
+Test: [00120/00212]     Time 0.08 (0.09)
+Test: [00140/00212]     Time 0.07 (0.08)
+[MetaArch] video #150: backbone+heads=35ms, inference+NMS=35ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.08)
+Test: [00180/00212]     Time 0.08 (0.08)
+[MetaArch] video #200: backbone+heads=33ms, inference+NMS=35ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.07 (0.08)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 16.0s (100%)
+[Profile] Avg per video: 0.08s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 81.22 (%)
+|tIoU = 0.40: mAP = 75.95 (%)
+|tIoU = 0.50: mAP = 68.43 (%)
+|tIoU = 0.60: mAP = 53.02 (%)
+|tIoU = 0.70: mAP = 35.93 (%)
+Avearge mAP: 62.91 (%)
+  mAP=62.91%  time=29s  [saved to D:\Code\Tridet\eval_output]
+
+[  8/ 14] epoch_040.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.07)
+[MetaArch] video #50: backbone+heads=27ms, inference+NMS=30ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.06 (0.06)
+[MetaArch] video #100: backbone+heads=27ms, inference+NMS=27ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=27ms, inference+NMS=28ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.06)
+Test: [00180/00212]     Time 0.07 (0.06)
+[MetaArch] video #200: backbone+heads=27ms, inference+NMS=29ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 13.1s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 82.36 (%)
+|tIoU = 0.40: mAP = 77.61 (%)
+|tIoU = 0.50: mAP = 69.84 (%)
+|tIoU = 0.60: mAP = 56.07 (%)
+|tIoU = 0.70: mAP = 39.18 (%)
+Avearge mAP: 65.01 (%)
+  mAP=65.01%  time=25s  [saved to D:\Code\Tridet\eval_output]
+
+[  9/ 14] epoch_045.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.07)
+[MetaArch] video #50: backbone+heads=29ms, inference+NMS=27ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.06 (0.06)
+[MetaArch] video #100: backbone+heads=28ms, inference+NMS=25ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=27ms, inference+NMS=26ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.07 (0.06)
+Test: [00180/00212]     Time 0.07 (0.06)
+[MetaArch] video #200: backbone+heads=27ms, inference+NMS=27ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 12.9s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 82.79 (%)
+|tIoU = 0.40: mAP = 78.26 (%)
+|tIoU = 0.50: mAP = 70.88 (%)
+|tIoU = 0.60: mAP = 58.12 (%)
+|tIoU = 0.70: mAP = 42.27 (%)
+Avearge mAP: 66.46 (%)
+  mAP=66.46%  time=25s  [saved to D:\Code\Tridet\eval_output]
+
+[ 10/ 14] epoch_050.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.06)
+[MetaArch] video #50: backbone+heads=28ms, inference+NMS=28ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.06 (0.06)
+[MetaArch] video #100: backbone+heads=28ms, inference+NMS=26ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=28ms, inference+NMS=27ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.06 (0.06)
+Test: [00180/00212]     Time 0.07 (0.06)
+[MetaArch] video #200: backbone+heads=28ms, inference+NMS=28ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 12.9s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 83.08 (%)
+|tIoU = 0.40: mAP = 78.84 (%)
+|tIoU = 0.50: mAP = 71.90 (%)
+|tIoU = 0.60: mAP = 60.15 (%)
+|tIoU = 0.70: mAP = 44.51 (%)
+Avearge mAP: 67.70 (%)
+  mAP=67.70%  time=25s  [saved to D:\Code\Tridet\eval_output]
+
+[ 11/ 14] epoch_055.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.06)
+[MetaArch] video #50: backbone+heads=30ms, inference+NMS=26ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.05 (0.06)
+[MetaArch] video #100: backbone+heads=27ms, inference+NMS=24ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.06 (0.06)
+Test: [00120/00212]     Time 0.07 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=27ms, inference+NMS=24ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.06 (0.06)
+Test: [00180/00212]     Time 0.07 (0.06)
+[MetaArch] video #200: backbone+heads=28ms, inference+NMS=25ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 12.4s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 83.12 (%)
+|tIoU = 0.40: mAP = 79.38 (%)
+|tIoU = 0.50: mAP = 72.33 (%)
+|tIoU = 0.60: mAP = 61.07 (%)
+|tIoU = 0.70: mAP = 45.83 (%)
+Avearge mAP: 68.34 (%)
+  mAP=68.34%  time=24s  [saved to D:\Code\Tridet\eval_output]
+
+[ 12/ 14] epoch_060.pth.tar
+Test: [00020/00212]     Time 0.06 (0.06)
+Test: [00040/00212]     Time 0.06 (0.06)
+[MetaArch] video #50: backbone+heads=27ms, inference+NMS=23ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.05 (0.06)
+[MetaArch] video #100: backbone+heads=26ms, inference+NMS=23ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.05 (0.06)
+Test: [00120/00212]     Time 0.07 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=26ms, inference+NMS=23ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.06 (0.06)
+Test: [00180/00212]     Time 0.07 (0.06)
+[MetaArch] video #200: backbone+heads=26ms, inference+NMS=24ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 11.9s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.01s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 83.09 (%)
+|tIoU = 0.40: mAP = 79.19 (%)
+|tIoU = 0.50: mAP = 72.10 (%)
+|tIoU = 0.60: mAP = 60.79 (%)
+|tIoU = 0.70: mAP = 45.91 (%)
+Avearge mAP: 68.21 (%)
+  mAP=68.21%  time=23s  [saved to D:\Code\Tridet\eval_output]
+
+[ 13/ 14] epoch_065.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.05 (0.06)
+[MetaArch] video #50: backbone+heads=29ms, inference+NMS=24ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.05 (0.06)
+Test: [00080/00212]     Time 0.05 (0.06)
+[MetaArch] video #100: backbone+heads=27ms, inference+NMS=22ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.05 (0.06)
+Test: [00120/00212]     Time 0.06 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=27ms, inference+NMS=22ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.06 (0.06)
+Test: [00180/00212]     Time 0.06 (0.06)
+[MetaArch] video #200: backbone+heads=27ms, inference+NMS=23ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 11.9s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 82.76 (%)
+|tIoU = 0.40: mAP = 79.15 (%)
+|tIoU = 0.50: mAP = 71.97 (%)
+|tIoU = 0.60: mAP = 60.50 (%)
+|tIoU = 0.70: mAP = 45.39 (%)
+Avearge mAP: 67.95 (%)
+  mAP=67.95%  time=22s  [saved to D:\Code\Tridet\eval_output]
+
+[ 14/ 14] epoch_069.pth.tar
+Test: [00020/00212]     Time 0.07 (0.07)
+Test: [00040/00212]     Time 0.06 (0.06)
+[MetaArch] video #50: backbone+heads=30ms, inference+NMS=24ms (avg over 50 videos)
+Test: [00060/00212]     Time 0.06 (0.06)
+Test: [00080/00212]     Time 0.05 (0.06)
+[MetaArch] video #100: backbone+heads=27ms, inference+NMS=23ms (avg over 100 videos)
+Test: [00100/00212]     Time 0.05 (0.06)
+Test: [00120/00212]     Time 0.06 (0.06)
+Test: [00140/00212]     Time 0.06 (0.06)
+[MetaArch] video #150: backbone+heads=28ms, inference+NMS=22ms (avg over 150 videos)
+Test: [00160/00212]     Time 0.06 (0.06)
+Test: [00180/00212]     Time 0.06 (0.06)
+[MetaArch] video #200: backbone+heads=27ms, inference+NMS=23ms (avg over 200 videos)
+Test: [00200/00212]     Time 0.06 (0.06)
+
+[Profile] Processed 212 videos
+[Profile] Model forward (inference + NMS): 11.9s (100%)
+[Profile] Avg per video: 0.06s
+[Profile] Result gather + cat: 0.0s
+[Profile] torch.cat + .numpy(): 0.00s
+[RESULTS] Action detection results on thumos14.
+
+|tIoU = 0.30: mAP = 82.52 (%)
+|tIoU = 0.40: mAP = 78.99 (%)
+|tIoU = 0.50: mAP = 71.45 (%)
+|tIoU = 0.60: mAP = 60.43 (%)
+|tIoU = 0.70: mAP = 45.05 (%)
+Avearge mAP: 67.69 (%)
+  mAP=67.69%  time=22s  [saved to D:\Code\Tridet\eval_output]
+
+============================================================
+  Sweep Complete — 14 checkpoints
+  Best:  epoch  55  mAP = 68.34%
+  Worst: epoch   5  mAP = 1.97%
+  Output: D:\Code\Tridet\eval_output
+============================================================
+
+   Epoch       mAP      Time
+  ------  --------  --------
+       5     1.97%     32.1s
+      10    15.67%     21.0s
+      15    33.29%     24.1s
+      20    45.81%     26.6s
+      25    55.36%     26.6s
+      30    60.04%     26.7s
+      35    62.91%     28.5s
+      40    65.01%     25.1s
+      45    66.46%     24.6s
+      50    67.70%     24.6s
+      55    68.34%     23.7s <-- BEST
+      60    68.21%     22.7s
+      65    67.95%     22.2s
+      69    67.69%     22.1s
+
+python .\tools\inspect_se_weights.py .\configs\thumos_i3d_se.yaml .\ckpt\thumos_i3d_se_prefusion\epoch_055.pth.tar
+(PatternRecognition) PS D:\Code\Tridet> python .\tools\inspect_se_weights.py .\configs\thumos_i3d_se.yaml .\ckpt\thumos_i3d_se_prefusion\epoch_055.pth.tar
+Loaded checkpoint from epoch 55
+
+--- Static Parameter Inspection ---
+
+======================================================================
+  SE/ECA Channel Attention — Learned Parameter Summary
+======================================================================
+
+  [module.backbone.branch.0.att]
+    fc.1.bias: shape=[32]  mean=+0.0008  std=0.0057  min=-0.0063  max=+0.0195
+    fc.1.weight: shape=[32, 512, 1]  mean=-0.0003  std=0.0259  min=-0.0630  max=+0.0619
+    fc.3.bias: shape=[512]  mean=+0.0026  std=0.0048  min=-0.0061  max=+0.0205
+    fc.3.weight: shape=[512, 32, 1]  mean=+0.0007  std=0.1029  min=-0.1813  max=+0.1950
+
+  [module.backbone.branch.1.att]
+    fc.1.bias: shape=[32]  mean=+0.0038  std=0.0062  min=-0.0065  max=+0.0181
+    fc.1.weight: shape=[32, 512, 1]  mean=-0.0003  std=0.0261  min=-0.0608  max=+0.0635
+    fc.3.bias: shape=[512]  mean=+0.0020  std=0.0039  min=-0.0060  max=+0.0152
+    fc.3.weight: shape=[512, 32, 1]  mean=+0.0004  std=0.1024  min=-0.1863  max=+0.1911
+
+  [module.backbone.branch.2.att]
+    fc.1.bias: shape=[32]  mean=+0.0033  std=0.0066  min=-0.0062  max=+0.0163
+    fc.1.weight: shape=[32, 512, 1]  mean=-0.0007  std=0.0262  min=-0.0619  max=+0.0619
+    fc.3.bias: shape=[512]  mean=+0.0020  std=0.0040  min=-0.0056  max=+0.0161
+    fc.3.weight: shape=[512, 32, 1]  mean=+0.0009  std=0.1018  min=-0.1805  max=+0.1966
+
+  [module.backbone.branch.3.att]
+    fc.1.bias: shape=[32]  mean=+0.0030  std=0.0048  min=-0.0043  max=+0.0132
+    fc.1.weight: shape=[32, 512, 1]  mean=-0.0004  std=0.0258  min=-0.0586  max=+0.0675
+    fc.3.bias: shape=[512]  mean=+0.0020  std=0.0036  min=-0.0049  max=+0.0181
+    fc.3.weight: shape=[512, 32, 1]  mean=+0.0011  std=0.1019  min=-0.1825  max=+0.1892
+
+  [module.backbone.branch.4.att]
+    fc.1.bias: shape=[32]  mean=+0.0010  std=0.0036  min=-0.0036  max=+0.0094
+    fc.1.weight: shape=[32, 512, 1]  mean=+0.0002  std=0.0257  min=-0.0566  max=+0.0623
+    fc.3.bias: shape=[512]  mean=+0.0015  std=0.0032  min=-0.0042  max=+0.0136
+    fc.3.weight: shape=[512, 32, 1]  mean=+0.0002  std=0.1018  min=-0.1801  max=+0.1861
+
+  [module.backbone.stem.0.att]
+    fc.1.bias: shape=[32]  mean=+0.0022  std=0.0039  min=-0.0048  max=+0.0080
+    fc.1.weight: shape=[32, 512, 1]  mean=-0.0008  std=0.0258  min=-0.0536  max=+0.0545
+    fc.3.bias: shape=[512]  mean=-0.0011  std=0.0045  min=-0.0088  max=+0.0217
+    fc.3.weight: shape=[512, 32, 1]  mean=-0.0012  std=0.1019  min=-0.1886  max=+0.1931
+
+  [module.backbone.stem.1.att]
+    fc.1.bias: shape=[32]  mean=+0.0019  std=0.0039  min=-0.0038  max=+0.0097
+    fc.1.weight: shape=[32, 512, 1]  mean=+0.0000  std=0.0259  min=-0.0650  max=+0.0594
+    fc.3.bias: shape=[512]  mean=-0.0016  std=0.0056  min=-0.0182  max=+0.0286
+    fc.3.weight: shape=[512, 32, 1]  mean=-0.0009  std=0.1017  min=-0.1902  max=+0.1961
+
+--- Runtime Weight Inspection ---
+
+Running 20 samples through model to capture attention weights...
+[NMS] Using C extension backend (nms_1d_cpu)
+  processed 5/20 samples
+  processed 10/20 samples
+  processed 15/20 samples
+  processed 20/20 samples
+
+Detailed stats saved to: train_output\se_stats_epoch055.json
+
+======================================================================
+  SE/ECA Channel Attention — Learned Parameter Summary
+======================================================================
+
+======================================================================
+  SE/ECA Channel Attention — Runtime Weight Distribution
+  (Sigmoid output, 0=suppress, 1=pass-through)
+======================================================================
+  Layer                                                Mean    Std   <0.1   >0.9 Channels
+  -------------------------------------------------- ------ ------ ------ ------ --------
+  branch.0.att                                        0.514  0.107  0.0%  0.0%      512
+  branch.1.att                                        0.507  0.098  0.0%  0.0%      512
+  branch.2.att                                        0.504  0.118  0.0%  0.1%      512
+  branch.3.att                                        0.516  0.122  0.0%  0.0%      512
+  branch.4.att                                        0.499  0.094  0.0%  0.0%      512
+  stem.0.att                                          0.491  0.086  0.0%  0.0%      512
+  stem.1.att                                          0.488  0.209  2.1%  2.0%      512
+
+  Overall: mean weight = 0.503, avg suppressed (<0.1) = 0.3%, avg pass-through (>0.9) = 0.3%
+  ✓ Assessment: SE weights show meaningful variance across channels — attention is learning non-trivial channel importance.

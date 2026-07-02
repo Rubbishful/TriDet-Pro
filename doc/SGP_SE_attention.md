@@ -122,7 +122,44 @@ out = self.ln(x)
 
 LayerNorm 输出是归一化后的"纯净"特征，通道间保留了原始的差异化信息。在分流处理之前先做通道筛选，SE 的通道权重会通过 `psi`、`fc`、`convw`、`convkw` 四条路径传播，影响力覆盖整个 SGP 融合过程。
 
-### 3.3 三种位置对比
+### 3.3 训练结果对比
+
+| 配置 | mAP | 说明 |
+|---|---|---|
+| 无 SE (baseline) | 68.59% | 基准 |
+| fusion SE (r=16, epoch 69) | ~66.5% | SE 有害，-2.0% |
+| **pre_fusion SE (r=16, epoch 55)** | **68.34%** | 基本消除负面影响，-0.25% |
+
+pre_fusion 成功解决了 fusion 位置的退化问题，mAP 接近无 SE 的 baseline 水平。
+
+### 3.4 Pre-fusion Runtime 权重分析 (epoch 55)
+
+```
+Layer          Mean    Std    <0.1    >0.9
+branch.0.att   0.514   0.107  0.0%    0.0%
+branch.1.att   0.507   0.098  0.0%    0.0%
+branch.2.att   0.504   0.118  0.0%    0.1%
+branch.3.att   0.516   0.122  0.0%    0.0%
+branch.4.att   0.499   0.094  0.0%    0.0%
+stem.0.att     0.491   0.086  0.0%    0.0%
+stem.1.att     0.488   0.209  2.1%    2.0%
+```
+
+与 fusion 位置对比：
+
+| 指标 | fusion (epoch 69) | pre_fusion (epoch 55) |
+|---|---|---|
+| Branch std | 0.020–0.059 | **0.094–0.122** (~2×) |
+| stem.1 std | 0.188 | **0.209** |
+| 通道抑制 <0.1 | ~0% | stem.1 有 2.1% |
+| 通道增强 >0.9 | ~0% | stem.1 有 2.0% |
+
+关键发现:
+- pre_fusion 让 branch 层方差翻倍，确认了"输入信号质量"是 SE 学习的关键瓶颈
+- stem.1（最后 stem block，全时间分辨率）最活跃，约 4% 通道 (~20/512) 产生了非平凡注意力
+- 但 96%+ 的通道权重仍集中在 0.5 附近，距离有效注意力（10-30% 极端值）还差一个数量级
+
+### 3.5 三种位置对比
 
 ```
                     SGPBlock forward 流程
@@ -136,7 +173,7 @@ LayerNorm 输出是归一化后的"纯净"特征，通道间保留了原始的�
                                     │         ↓
                                     ├──→ x + drop_path(out)
                                     │         ↓
-                                    ├──→ [B: fusion]        ← 原位置 (已弃用)
+                                    ├──→ [B: fusion]        ← 已弃用
                                     │         ↓
                                     ├──→ GroupNorm → MLP
                                     │         ↓
@@ -147,25 +184,126 @@ LayerNorm 输出是归一化后的"纯净"特征，通道间保留了原始的�
 |---|---|---|---|
 | **A. pre_fusion** | LN 后，分支 split 前 | 归一化后的干净特征，通道间差异大 | **当前使用** |
 | **B. fusion** | 5 分支融合 + 残差后 | 被 `x + drop_path(融合)` 的 identity 路径主导 | 已证实退化 |
-| **C. mlp** | FFN 残差后 | 经过 MLP 非线性变换 | 未测试，预计与 fusion 类似 |
+| **C. mlp** | FFN 残差后 | 经过 MLP 非线性变换 | 未测试 |
 
-### 3.4 选择 Pre-fusion 的理由
+### 3.6 选择 Pre-fusion 的理由
 
 1. **信号质量最高**: LayerNorm 输出的通道间保留了差异化信息，SE 有足够的信号去学习通道重要性，不会被残差连接的 identity 项淹没
 2. **影响力最大**: 一次通道重标定通过所有分支 (`psi`, `fc`, `convw`, `convkw`) 传播，影响整个 SGP 融合过程
 3. **最小改动**: 仅移动 `self.att()` 的调用位置，不增加参数量，不修改 SELayer 本身
 4. **直觉合理**: 在"分流处理"之前决定哪些通道更重要 — 先筛选信息，再分发到不同时间尺度处理
 
-### 3.5 潜在风险
+### 3.7 潜在风险
 
 - Pre-fusion 的 SE 权重如果趋向极端（饱和到 0 或 1），可能永久性阻断某些通道进入分支处理
 - 但由于融合阶段有残差连接 `out = fc*phi + (convw+convkw)*psi + out`，被抑制的通道仍可通过恒等路径传递，不会完全丢失
 
 ---
 
-## 4. 实现细节
+## 4. SELayer 内部机制
 
-### 4.1 修改文件清单
+### 4.1 结构
+
+SELayer（Squeeze-and-Excitation，1D 版本）通过两个 1×1 Conv1d 实现通道间的压缩-重建：
+
+```python
+class SELayer(nn.Module):
+    def __init__(self, channels, reduction=16):
+        self.fc = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),                          # 时间维压缩
+            nn.Conv1d(channels, channels // reduction, 1),    # Squeeze: C → C/r
+            nn.ReLU(inplace=True),
+            nn.Conv1d(channels // reduction, channels, 1),    # Excitation: C/r → C
+            nn.Sigmoid()                                       # 权重归一化到 (0,1)
+        )
+
+    def forward(self, x):
+        return x * self.fc(x)   # 逐通道乘法
+```
+
+### 4.2 reduction 参数
+
+`reduction` 控制 Squeeze 阶段的压缩比，决定 bottleneck 的宽度：
+
+```
+reduction = C / bottleneck_dim
+```
+
+以当前 C=512 为例：
+
+| reduction | bottleneck | Squeeze 参数 | Excitation 参数 | 总参数量 | 压缩率 |
+|---|---|---|---|---|---|
+| 16 | 32 | 512×32+32=16,416 | 32×512+512=16,896 | **33,312** | 93.75% |
+| 8 | 64 | 512×64+64=32,832 | 64×512+512=33,280 | **66,112** | 87.50% |
+| 4 | 128 | 512×128+128=65,664 | 128×512+512=66,048 | **131,712** | 75.00% |
+
+### 4.3 压缩实现原理
+
+SE 的压缩不是通过降采样或 stride，而是通过 **kernel_size=1 的 Conv1d 在两个方向上的矩阵乘法**。
+
+**Step 1 — 时间池化**: `AdaptiveAvgPool1d(1)` 将每个通道的时间序列压缩为单个标量
+
+```
+(B, 512, T) → (B, 512, 1)
+每个通道在时间上取全局平均，得到 512 个标量
+```
+
+**Step 2 — Squeeze (fc.1)**: `Conv1d(512, C/r, kernel=1)` 即线性变换
+
+```
+对每个时间位置（只剩 1 个），做 512 → C/r 的线性变换:
+
+  out[j] = bias[j] + Σ_{i=0}^{511} weight[j, i] × input[i]
+  j = 0, 1, ..., C/r - 1
+
+(B, 512, 1) → (B, C/r, 1)
+```
+
+**Step 3 — ReLU**: 非线性激活，丢弃负值
+
+**Step 4 — Excitation (fc.3)**: `Conv1d(C/r, 512, kernel=1)` 逆线性变换
+
+```
+从 C/r 维重建 512 维:
+
+  out[i] = bias[i] + Σ_{j=0}^{C/r-1} weight[i, j] × input[j]
+  i = 0, 1, ..., 511
+
+(B, C/r, 1) → (B, 512, 1)
+```
+
+**Step 5 — Sigmoid**: 映射到 (0, 1)，得到 512 个通道注意力权重
+
+**Step 6 — Scale**: `x * weight`，每个通道乘以对应权重
+
+### 4.4 信息瓶颈分析
+
+```
+512 维通道信息
+    ↓ 压缩到 C/r 维
+    ↓ ReLU 丢弃负值（额外信息损失）
+    ↓ 从 C/r 维重建 512 维
+    → 512 个注意力权重
+```
+
+当 `reduction=16` 时，bottleneck 仅 32 维，需编码 512 个通道间的所有相互关系。这个 93.75% 的信息压缩率极其激进——如果 32 维表示不足以捕捉通道间有意义的差异，网络的最优策略就是输出近似常数权重（~0.5），最小化错误重标定带来的 loss 风险。
+
+这正是两个训练实验中观察到的现象：无论 fusion 还是 pre_fusion 位置，SE 权重都趋近 0.5。
+
+### 4.5 优化方向: 减小 reduction
+
+pre_fusion 解决了信号质量问题（位置），但 SE 仍然受限于 bottleneck 过窄。下一步将 `reduction` 从 16 降至 4：
+
+- bottleneck 从 32 → 128，容量提升 4×
+- 每个 SE 层参数量从 ~33K → ~132K，7 个 SE 层总计 ~0.92M
+- 相对模型总参数量（约 30M+），增加约 3%，可以接受
+- 更宽的 bottleneck 允许 SE 编码更丰富的通道间关系，有望打破"所有权重趋近 0.5"的退化状态
+
+---
+
+## 5. 实现细节
+
+### 5.1 修改文件清单
 
 | 文件 | 改动内容 |
 |---|---|
@@ -173,9 +311,9 @@ LayerNorm 输出是归一化后的"纯净"特征，通道间保留了原始的�
 | `libs/modeling/backbones.py` | 无逻辑改动（已透传 `att_position`），仅更新注释 |
 | `libs/modeling/meta_archs.py` | 无逻辑改动（已透传 `att_position`），仅更新注释 |
 | `libs/core/config.py` | 默认值注释更新为 `'pre_fusion' \| 'fusion' \| 'mlp'` |
-| `configs/thumos_i3d_se.yaml` | `att_position: pre_fusion`，`batch_size: 8`，`learning_rate: 0.0002` |
+| `configs/thumos_i3d_se.yaml` | `att_position: pre_fusion`，`att_reduction: 4`，`batch_size: 8`，`learning_rate: 0.0002` |
 
-### 4.2 SGPBlock 核心代码
+### 5.2 SGPBlock 核心代码
 
 ```python
 # __init__ — 根据位置选择 SE 输入通道数
@@ -200,7 +338,7 @@ out = fc * phi + (convw + convkw) * psi + out
 out = x * out_mask + self.drop_path_out(out)
 
 if self.att_position == 'fusion':
-    out = self.att(out)          # ② 融合后 (原行为，已弃用)
+    out = self.att(out)          # ② 融合后 (已弃用)
 
 out = out + self.drop_path_mlp(self.mlp(self.gn(out)))
 
@@ -208,7 +346,7 @@ if self.att_position == 'mlp':
     out = self.att(out)          # ③ MLP 后 (备选)
 ```
 
-### 4.3 训练配置
+### 5.3 当前训练配置
 
 ```yaml
 # configs/thumos_i3d_se.yaml (当前)
@@ -216,31 +354,13 @@ model:
   use_att: True
   att_type: SE
   att_position: pre_fusion     # LayerNorm 后注入
-  att_reduction: 16
+  att_reduction: 4               # bottleneck = 512/4 = 128 (从 16→32 降下来)
 loader:
-  batch_size: 8                # 显存利用率 ~80% (基于 40% @ batch_size=4 估算)
+  batch_size: 8                  # 从 4 翻倍，显存利用率 ~80%
   num_workers: 4
 opt:
-  learning_rate: 0.0002        # 线性缩放: 0.0001 × (8/4)
+  learning_rate: 0.0002          # 线性缩放: 0.0001 × (8/4)
   warmup_epochs: 20
   epochs: 50
   weight_decay: 0.025
 ```
-
-### 4.4 验证结果
-
-使用 `tools/inspect_se_weights.py` 验证 pre_fusion 实现正确性：
-
-```
-Runtime Weight Distribution (pre_fusion 位置, epoch_069 权重)
-Layer          Mean    Std    <0.1    >0.9
-branch.0.att   0.497   0.056  0.0%    0.0%
-branch.1.att   0.498   0.082  0.0%    0.0%
-branch.2.att   0.497   0.107  0.0%    0.0%
-branch.3.att   0.495   0.064  0.0%    0.0%
-branch.4.att   0.497   0.076  0.0%    0.0%
-stem.0.att     0.499   0.048  0.0%    0.0%
-stem.1.att     0.497   0.174  0.8%    0.7%
-```
-
-注意: 以上使用的 checkpoint 是 fusion 位置训练的旧权重，SE 本身是退化的（mean≈0.5）。pre_fusion 仅改变 SE 的调用位置，不改变权重结构。**需要重新训练**才能评估 pre_fusion 是否能让 SE 学到有意义的通道注意力。
