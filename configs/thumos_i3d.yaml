@@ -35,7 +35,7 @@ opt: {
   weight_decay: 0.025,
 }
 loader: {
-  batch_size: 4,
+  batch_size: 8,
   num_workers: 4,
 }
 train_cfg: {
