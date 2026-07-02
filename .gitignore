@@ -13,12 +13,15 @@ ckpt/
 
 # Visualize output folder
 vis_output
+train_output
+eval_output
 
 # IDE & tools
 .clawhub/
 .vscode/
 .idea/
 .claude/
+Tridet.code-workspace
 
 # Project docs (optional: keep if you want to share with teammates)
 # doc/
