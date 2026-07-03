@@ -10,9 +10,11 @@ import datetime
 from pathlib import Path
 from pprint import pprint
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 import torch
 import torch.nn as nn
-import torch.utils.data
 
 from libs.core import load_config
 from libs.datasets import make_dataset, make_data_loader
@@ -24,11 +26,22 @@ from libs.utils import (train_one_epoch, valid_one_epoch, ANETdetection,
 
 def evaluate_checkpoint(cfg, ckpt_path, val_loader, det_eval, devices):
     """Load an EMA checkpoint and run validation, returning average mAP (float)."""
-    model = make_meta_arch(cfg['model_name'], **cfg['model'])
-    model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in devices])
     checkpoint = torch.load(ckpt_path, map_location=devices[0])
-    model.load_state_dict(checkpoint['state_dict_ema'])
+    state_dict = checkpoint['state_dict_ema']
     del checkpoint
+
+    # Detect old-style BiFPN checkpoints (fast_norm weights, no drop_path.scale)
+    model_kwargs = dict(cfg['model'])
+    has_fast_norm = any('.weights' in k for k in state_dict.keys())
+    has_drop_path = any('drop_path.scale' in k for k in state_dict.keys())
+    if has_fast_norm:
+        model_kwargs['bifpn_fusion_method'] = 'fast_norm'
+    if not has_drop_path:
+        model_kwargs['bifpn_drop_path'] = 0.0
+
+    model = make_meta_arch(cfg['model_name'], **model_kwargs)
+    model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in devices])
+    model.load_state_dict(state_dict)
     mAP = valid_one_epoch(
         val_loader, model, -1,
         evaluator=det_eval, output_file=None,
