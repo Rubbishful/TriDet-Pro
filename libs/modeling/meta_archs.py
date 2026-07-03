@@ -210,6 +210,7 @@ class TriDet(nn.Module):
             test_cfg,  # other cfg for testing
             bifpn_num_repeats=1,  # number of BiFPN block repeats
             bifpn_fusion_method='fast_norm',  # fast_norm | sum
+            bifpn_drop_path=0.0,  # stochastic depth in BiFPN blocks
     ):
         super().__init__()
         # re-distribute params to backbone / neck / head
@@ -311,6 +312,7 @@ class TriDet(nn.Module):
         if fpn_type == 'bifpn':
             neck_kwargs['num_repeats'] = bifpn_num_repeats
             neck_kwargs['fusion_method'] = bifpn_fusion_method
+            neck_kwargs['drop_path'] = bifpn_drop_path
         self.neck = make_neck(fpn_type, **neck_kwargs)
 
         # location generator: points

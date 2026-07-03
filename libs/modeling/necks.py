@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .models import register_neck
-from .blocks import MaskedConv1D, LayerNorm
+from .blocks import MaskedConv1D, LayerNorm, AffineDropPath
 
 @register_neck("fpn")
 class FPN1D(nn.Module):
@@ -174,7 +174,7 @@ class BiFPNBlock(nn.Module):
     """
     A single BiFPN block with top-down and bottom-up pathways.
     """
-    def __init__(self, num_levels, out_channel, scale_factor=2.0, with_ln=True, fusion_method='fast_norm'):
+    def __init__(self, num_levels, out_channel, scale_factor=2.0, with_ln=True, fusion_method='fast_norm', drop_path=0.0):
         super().__init__()
         self.num_levels = num_levels
         self.scale_factor = scale_factor
@@ -213,6 +213,12 @@ class BiFPNBlock(nn.Module):
                 bias=(not with_ln), groups=out_channel
             ))
 
+        # Stochastic depth
+        if drop_path > 0.0:
+            self.drop_path = AffineDropPath(out_channel, drop_path)
+        else:
+            self.drop_path = nn.Identity()
+
     def forward(self, feats, masks):
         N = self.num_levels
 
@@ -239,6 +245,9 @@ class BiFPNBlock(nn.Module):
             out_feats[i], _ = self.bu_convs[i](fused, masks[i])
             out_feats[i] = self.bu_norms[i](out_feats[i])
 
+        # Apply stochastic depth
+        out_feats = [self.drop_path(f) for f in out_feats]
+
         return out_feats
 
 
@@ -257,7 +266,8 @@ class BiFPN1D(nn.Module):
         end_level=-1,
         with_ln=True,
         num_repeats=1,
-        fusion_method='fast_norm'
+        fusion_method='sum',
+        drop_path=0.0
     ):
         super().__init__()
         assert isinstance(in_channels, (list, tuple))
@@ -287,7 +297,7 @@ class BiFPN1D(nn.Module):
         self.bifpn_blocks = nn.ModuleList()
         for _ in range(num_repeats):
             self.bifpn_blocks.append(
-                BiFPNBlock(num_levels, out_channel, scale_factor, with_ln, fusion_method)
+                BiFPNBlock(num_levels, out_channel, scale_factor, with_ln, fusion_method, drop_path)
             )
 
     def forward(self, inputs, fpn_masks):
@@ -303,8 +313,9 @@ class BiFPN1D(nn.Module):
 
         masks = [fpn_masks[i + self.start_level] for i in range(len(self.lateral_convs))]
 
-        # Apply repeated BiFPN blocks
+        # Apply repeated BiFPN blocks (with residual connections)
         for block in self.bifpn_blocks:
-            feats = block(feats, masks)
+            new_feats = block(feats, masks)
+            feats = [new_feats[i] + feats[i] for i in range(len(feats))]
 
         return tuple(feats), fpn_masks

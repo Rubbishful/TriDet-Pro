@@ -63,6 +63,7 @@ DEFAULTS = {
         # BiFPN specific (only used when fpn_type == 'bifpn')
         "bifpn_num_repeats": 1,
         "bifpn_fusion_method": 'fast_norm',  # fast_norm | sum
+        "bifpn_drop_path": 0.0,
         # feat dim for head
         "head_dim": 512,
         # kernel size for reg/cls/center heads
