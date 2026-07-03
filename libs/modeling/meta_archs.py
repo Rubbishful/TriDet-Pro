@@ -5,7 +5,10 @@ from torch import nn
 from torch.nn import functional as F
 
 from .blocks import MaskedConv1D, Scale, LayerNorm
-from .losses import ctr_diou_loss_1d, sigmoid_focal_loss, ctr_giou_loss_1d
+from .losses import (
+    ctr_diou_loss_1d, sigmoid_focal_loss, ctr_giou_loss_1d,
+    ctr_eiou_loss_1d, ctr_alpha_diou_loss_1d, ctr_focaler_diou_loss_1d,
+)
 from .models import register_meta_arch, make_backbone, make_neck, make_generator
 from ..utils import batched_nms
 
@@ -211,6 +214,8 @@ class TriDet(nn.Module):
             bifpn_num_repeats=1,  # number of BiFPN block repeats
             bifpn_fusion_method='fast_norm',  # fast_norm | sum
             bifpn_drop_path=0.0,  # stochastic depth in BiFPN blocks
+            reg_loss_type='diou',  # diou | eiou | alpha_diou | focaler_diou
+            reg_loss_kwargs=None,  # extra kwargs for the chosen loss
     ):
         super().__init__()
         # re-distribute params to backbone / neck / head
@@ -249,6 +254,8 @@ class TriDet(nn.Module):
         self.train_dropout = train_cfg['dropout']
         self.train_droppath = train_cfg['droppath']
         self.train_label_smoothing = train_cfg['label_smoothing']
+        self.reg_loss_type = reg_loss_type
+        self.reg_loss_kwargs = reg_loss_kwargs if reg_loss_kwargs is not None else {}
 
         # test time config
         self.test_pre_nms_thresh = test_cfg['pre_nms_thresh']
@@ -656,6 +663,25 @@ class TriDet(nn.Module):
 
         return cls_targets, reg_targets
 
+    def _compute_reg_loss(self, pred_offsets, gt_offsets):
+        """Compute regression loss based on self.reg_loss_type."""
+        loss_type = self.reg_loss_type
+        loss_kwargs = self.reg_loss_kwargs.copy()
+
+        if loss_type == 'diou':
+            return ctr_diou_loss_1d(pred_offsets, gt_offsets, reduction='sum')
+        elif loss_type == 'eiou':
+            return ctr_eiou_loss_1d(pred_offsets, gt_offsets, reduction='sum')
+        elif loss_type == 'alpha_diou':
+            alpha = loss_kwargs.pop('alpha', 3.0)
+            return ctr_alpha_diou_loss_1d(pred_offsets, gt_offsets, reduction='sum', alpha=alpha)
+        elif loss_type == 'focaler_diou':
+            d = loss_kwargs.pop('d', 0.0)
+            u = loss_kwargs.pop('u', 0.95)
+            return ctr_focaler_diou_loss_1d(pred_offsets, gt_offsets, reduction='sum', d=d, u=u)
+        else:
+            raise ValueError(f"Unknown reg_loss_type: {loss_type}")
+
     def losses(
             self, fpn_masks,
             out_cls_logits, out_offsets,
@@ -744,11 +770,7 @@ class TriDet(nn.Module):
             reg_loss = 0 * pred_offsets.sum()
         else:
             # giou loss defined on positive samples
-            reg_loss = ctr_diou_loss_1d(
-                pred_offsets,
-                gt_offsets,
-                reduction='sum'
-            )
+            reg_loss = self._compute_reg_loss(pred_offsets, gt_offsets)
             reg_loss /= self.loss_normalizer
 
         if self.train_loss_weight > 0:

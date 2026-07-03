@@ -64,6 +64,10 @@ DEFAULTS = {
         "bifpn_num_repeats": 1,
         "bifpn_fusion_method": 'fast_norm',  # fast_norm | sum
         "bifpn_drop_path": 0.0,
+        # regression loss type: diou | eiou | alpha_diou | focaler_diou
+        "reg_loss_type": "diou",
+        # extra kwargs for the chosen loss, e.g. {"alpha": 3} or {"d": 0.0, "u": 0.95}
+        "reg_loss_kwargs": {},
         # feat dim for head
         "head_dim": 512,
         # kernel size for reg/cls/center heads
