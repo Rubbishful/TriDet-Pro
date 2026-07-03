@@ -107,6 +107,8 @@ DEFAULTS = {
         "droppath": 0.1,
         # if to use label smoothing (>0.0)
         "label_smoothing": 0.0,
+        # Scheme C: OverlapPredictor training weight
+        "overlap_loss_weight": 0.5,
     },
     "test_cfg": {
         "pre_nms_thresh": 0.001,
@@ -120,6 +122,20 @@ DEFAULTS = {
         "multiclass_nms": True,
         "ext_score_file": None,
         "voting_thresh": 0.75,
+        # Scheme A: Density-Aware NMS
+        "adaptive_nms": False,
+        "density_iou_thresh": 0.3,
+        "nms_beta": 0.15,
+        "nms_sigma_high_density": 0.85,
+        "density_threshold": 0.3,
+        # Scheme B: Cross-class dedup + score calibration
+        "cross_class_dedup": False,
+        "cross_class_nms_thresh": 0.7,
+        "cross_class_nms_penalty": 0.9,
+        "density_score_penalty": False,
+        # Scheme C: OverlapPredictor inference
+        "use_overlap_predictor": False,
+        "overlap_max_topk": 3,
     },
     # optimizer (for training)
     "opt": {
@@ -169,7 +185,8 @@ def _update_config(config):
 
 
 def load_config(config_file, defaults=DEFAULTS):
-    with open(config_file, "r") as fd:
+    # [CHANGED] 强制 UTF-8 编码，支持中文注释
+    with open(config_file, "r", encoding='utf-8') as fd:
         config = yaml.load(fd, Loader=yaml.FullLoader)
     _merge(defaults, config)
     config = _update_config(config)

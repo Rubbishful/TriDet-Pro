@@ -1,5 +1,55 @@
-Overlap tIoU > 0.3
-Ov videos=43, instances=834
-All mAP: 0.00%
-Overlap mAP: 0.00%
-Non-Overlap mAP: 0.00%
+============================================================
+重叠场景子集评估结果 (tIoU > 0.3, THUMOS14 split=test)
+============================================================
+重叠视频: 43    重叠实例: 502    总实例: 3358    重叠占比: 14.9%
+============================================================
+
+--- 基线 (epoch_039, sigma=0.50, pre_nms_topk=2000, max_seg_num=2000) ---
+All mAP:         69.03%
+Overlap mAP:     20.77%
+Non-Overlap mAP: 43.71%
+Overlap Gap:     22.9 points
+
+--- 方案A: Density-Aware NMS (epoch_039, sigma=0.90, 密集提分) ---
+All mAP:         68.99%
+Overlap mAP:     20.73%
+Non-Overlap mAP: 43.77%
+Overlap Gap:     23.0 points
+
+--- 方案A+B: +跨类别去重+密度校准 (epoch_039) ---
+All mAP:         68.98%
+Overlap mAP:     20.31%
+Non-Overlap mAP: 43.93%
+Overlap Gap:     23.6 points
+
+--- 参数优化 (epoch_035, sigma=0.60, pre_nms_topk=5000, max_seg_num=3000) ---
+All mAP:         69.34%
+Overlap mAP:     20.63%
+Non-Overlap mAP: 43.96%
+Overlap Gap:     23.3 points
+
+--- 方案C: OverlapPredictor 微调 (epoch_039, THUMOS14) ---
+All mAP:         65.64%
+Overlap mAP:     (未单独评估, 整体低于基线 -3.39%)
+============================================================
+
+密度分层 Recall (基线):
+  1-5 实例:   98.48% (73视频, 197实例)
+  6-15 实例:  99.06% (66视频, 635实例)
+  16-50 实例: 97.09% (62视频, 1616实例)
+  >50 实例:   99.78% (11视频, 910实例)
+
+重叠度分桶 Recall (基线):
+  0% 重叠:    98.17% (2784实例)
+  0-30% 重叠: 100.00% (39实例)
+  30-70% 重叠:100.00% (67实例)
+  >70% 重叠:  98.50% (468实例)
+
+同类共检出率: 96.58% (322对中311对两个都被检出)
+至少检出一个: 99.69% (322对中321对)
+
+失效案例图: analysis/output/failure_cases/*.png (20张)
+
+ActivityNet 基线: 36.64% (重叠实例仅占 0.5%)
+ActivityNet +方案A+B: 36.49%
+============================================================

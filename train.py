@@ -68,6 +68,26 @@ def main(args):
     """3. create model, optimizer, and scheduler"""
     # model
     model = make_meta_arch(cfg['model_name'], **cfg['model'])
+
+    # [CHANGED] 支持从预训练权重微调（仅加载匹配的权重，OverlapPredictor 随机初始化）
+    if args.finetune:
+        print(f"=> Loading pretrained weights from '{args.finetune}' for finetuning")
+        pretrained = torch.load(args.finetune, map_location='cpu')
+        pretrained_state = pretrained.get('state_dict_ema', pretrained.get('state_dict', pretrained))
+        # Remove 'module.' prefix if present
+        model_state = model.state_dict()
+        matched, skipped = [], []
+        for k, v in pretrained_state.items():
+            clean_k = k.replace('module.', '')
+            if clean_k in model_state and model_state[clean_k].shape == v.shape:
+                model_state[clean_k] = v
+                matched.append(clean_k)
+            else:
+                skipped.append(clean_k)
+        model.load_state_dict(model_state)
+        print(f"  Loaded {len(matched)} params, skipped {len(skipped)} (new/OverlapPredictor)")
+        del pretrained
+
     # not ideal for multi GPU training, ok for now
     model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg['devices']])
     # optimizer
@@ -169,5 +189,8 @@ if __name__ == '__main__':
                         help='name of exp folder (default: none)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to a checkpoint (default: none)')
+    # [CHANGED] 预训练权重微调（如加载基线模型 + 训练 OverlapPredictor）
+    parser.add_argument('--finetune', default='', type=str, metavar='PATH',
+                        help='path to pretrained checkpoint for finetuning')
     args = parser.parse_args()
     main(args)

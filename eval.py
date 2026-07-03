@@ -31,8 +31,19 @@ def main(args):
         assert os.path.isfile(args.ckpt), "CKPT file does not exist!"
         ckpt_file = args.ckpt
     else:
-        assert os.path.isdir(args.ckpt), "CKPT file folder does not exist!"
+        # [CHANGED] 将断言替换为友好错误提示，并检测空目录
+        if not os.path.isdir(args.ckpt):
+            raise FileNotFoundError(
+                f"Checkpoint 目录不存在: {args.ckpt}\n"
+                "请先运行训练（python train.py ...）生成模型权重，\n"
+                "或指定正确的 checkpoint 文件路径。"
+            )
         ckpt_file_list = sorted(glob.glob(os.path.join(args.ckpt, '*.pth.tar')))
+        if len(ckpt_file_list) == 0:
+            raise FileNotFoundError(
+                f"Checkpoint 目录中未找到 .pth.tar 文件: {args.ckpt}\n"
+                "该目录下没有训练好的模型权重。请确认训练已完成并生成了 checkpoint。"
+            )
         ckpt_file = ckpt_file_list[-1]
 
     if args.topk > 0:
@@ -48,15 +59,19 @@ def main(args):
         cfg['dataset_name'], False, cfg['val_split'], **cfg['dataset']
     )
     # set bs = 1, and disable shuffle
+    # [CHANGED] num_workers=0 避免 Windows 下 DataLoader 多进程卡死
     val_loader = make_data_loader(
-        val_dataset, False, None, 1, cfg['loader']['num_workers']
+        val_dataset, False, None, 1, 0  # was: cfg['loader']['num_workers']
     )
 
     """3. create model and evaluator"""
     # model
     model = make_meta_arch(cfg['model_name'], **cfg['model'])
-    # not ideal for multi GPU training, ok for now
-    model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg['devices']])
+    # [CHANGED] 单卡时跳过 DataParallel，避免 Windows 下死锁
+    if len(cfg['devices']) > 1:
+        model = nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg['devices']])
+    else:
+        model = model.cuda()
 
     """4. load ckpt"""
     print("=> loading checkpoint '{}'".format(ckpt_file))
@@ -64,7 +79,11 @@ def main(args):
     checkpoint = torch.load(ckpt_file, map_location=cfg['devices'][0])
     # load ema model instead
     print("Loading from EMA model ...")
-    model.load_state_dict(checkpoint['state_dict_ema'])
+    # [CHANGED] 单卡时去除 DataParallel 的 'module.' 前缀
+    state_dict = checkpoint['state_dict_ema']
+    if len(cfg['devices']) == 1:
+        state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict)
     del checkpoint
 
     # set up evaluator

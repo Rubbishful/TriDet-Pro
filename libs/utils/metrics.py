@@ -173,6 +173,169 @@ class ANETdetection(object):
 
         return ap
 
+    def filter_overlap_subset(self, overlap_tiou=0.3):
+        """
+        Filter ground truth to segments that overlap with at least one
+        other GT instance (any class) beyond the given tIoU threshold.
+        Returns a dict with keys:
+            - 'gt_subset': pd.DataFrame of overlapping GT instances
+            - 'gt_non_overlap': pd.DataFrame of non-overlapping GT instances
+            - 'overlap_ratio': fraction of GT instances that overlap
+        """
+        gt = self.ground_truth
+        overlap_mask = np.zeros(len(gt), dtype=bool)
+
+        for vid in gt['video-id'].unique():
+            vid_mask = gt['video-id'] == vid
+            vid_idx = np.where(vid_mask)[0]
+            vid_segs = gt.loc[vid_mask, ['t-start', 't-end']].values
+
+            for i, idx in enumerate(vid_idx):
+                if overlap_mask[idx]:
+                    continue
+                target = vid_segs[i]
+                for j in range(len(vid_segs)):
+                    if i == j:
+                        continue
+                    cand = vid_segs[j]
+                    # compute tIoU
+                    inter = max(0.0, min(target[1], cand[1]) -
+                                max(target[0], cand[0]))
+                    union = ((target[1] - target[0]) +
+                             (cand[1] - cand[0]) - inter)
+                    tIoU = inter / union if union > 1e-8 else 0.0
+                    if tIoU > overlap_tiou:
+                        overlap_mask[idx] = True
+                        overlap_mask[vid_idx[j]] = True
+
+        gt_subset = self.ground_truth[overlap_mask].copy()
+        gt_non_overlap = self.ground_truth[~overlap_mask].copy()
+        overlap_ratio = overlap_mask.sum() / len(self.ground_truth) \
+            if len(self.ground_truth) > 0 else 0.0
+
+        return {
+            'gt_subset': gt_subset,
+            'gt_non_overlap': gt_non_overlap,
+            'overlap_ratio': overlap_ratio,
+            'num_overlap': overlap_mask.sum(),
+            'num_total': len(self.ground_truth),
+        }
+
+    def evaluate_overlap_subset(self, preds, overlap_tiou=0.3, verbose=True):
+        """
+        Evaluate detection performance on the overlapping subset only.
+        Compares standard mAP against overlap-subset mAP.
+
+        Args:
+            preds: predictions (DataFrame, json path, or dict)
+            overlap_tiou: tIoU threshold for "overlapping" instances
+            verbose: print results
+
+        Returns:
+            dict with keys: 'mAP_all', 'mAP_overlap', 'mAP_non_overlap',
+                           'overlap_ratio'
+        """
+        # prepare preds in standard format
+        if isinstance(preds, pd.DataFrame):
+            preds_df = preds.copy()
+        elif isinstance(preds, str) and os.path.isfile(preds):
+            preds_df = load_pred_seg_from_json(preds)
+        elif isinstance(preds, Dict):
+            preds_df = pd.DataFrame({
+                'video-id': preds['video-id'],
+                't-start': preds['t-start'].tolist(),
+                't-end': preds['t-end'].tolist(),
+                'label': preds['label'].tolist(),
+                'score': preds['score'].tolist()
+            })
+        else:
+            raise TypeError("Unsupported prediction type")
+
+        # standardise labels
+        preds_df['label'] = preds_df['label'].replace(self.activity_index)
+
+        # filter overlap subset
+        overlap_info = self.filter_overlap_subset(overlap_tiou)
+
+        # evaluate on all GT
+        self.ap = None
+        mAP_all, avg_mAP_all = self.evaluate(preds_df, verbose=False)
+
+        # evaluate on overlap subset only
+        if overlap_info['num_overlap'] > 0:
+            # Create temporary evaluator for overlap subset
+            overlap_eval = ANETdetection.__new__(ANETdetection)
+            overlap_eval.tiou_thresholds = self.tiou_thresholds
+            overlap_eval.ap = None
+            overlap_eval.num_workers = self.num_workers
+            overlap_eval.dataset_name = self.dataset_name + '_overlap'
+            overlap_eval.split = self.split
+            overlap_eval.ground_truth = overlap_info['gt_subset'].reset_index(drop=True)
+            # rebuild activity index for the subset
+            overlap_eval.activity_index = {
+                j: i for i, j in enumerate(
+                    sorted(overlap_eval.ground_truth['label'].unique()))
+            }
+            overlap_eval.ground_truth['label'] = \
+                overlap_eval.ground_truth['label'].replace(overlap_eval.activity_index)
+            overlap_eval.ground_truth = overlap_eval.ground_truth.drop(
+                np.where(overlap_eval.ground_truth['t-start'] ==
+                         overlap_eval.ground_truth['t-end'])[0])
+
+            mAP_overlap, avg_mAP_overlap = overlap_eval.evaluate(
+                preds_df, verbose=False)
+        else:
+            mAP_overlap = np.zeros(len(self.tiou_thresholds))
+            avg_mAP_overlap = 0.0
+
+        # evaluate on non-overlap subset
+        if overlap_info['num_total'] - overlap_info['num_overlap'] > 0:
+            non_eval = ANETdetection.__new__(ANETdetection)
+            non_eval.tiou_thresholds = self.tiou_thresholds
+            non_eval.ap = None
+            non_eval.num_workers = self.num_workers
+            non_eval.dataset_name = self.dataset_name + '_non_overlap'
+            non_eval.split = self.split
+            non_eval.ground_truth = overlap_info['gt_non_overlap'].reset_index(drop=True)
+            non_eval.activity_index = {
+                j: i for i, j in enumerate(
+                    sorted(non_eval.ground_truth['label'].unique()))
+            }
+            non_eval.ground_truth['label'] = \
+                non_eval.ground_truth['label'].replace(non_eval.activity_index)
+            non_eval.ground_truth = non_eval.ground_truth.drop(
+                np.where(non_eval.ground_truth['t-start'] ==
+                         non_eval.ground_truth['t-end'])[0])
+
+            mAP_non_overlap, avg_mAP_non_overlap = non_eval.evaluate(
+                preds_df, verbose=False)
+        else:
+            mAP_non_overlap = np.zeros(len(self.tiou_thresholds))
+            avg_mAP_non_overlap = 0.0
+
+        if verbose:
+            print('\n' + '=' * 60)
+            print('[OVERLAP ANALYSIS] Overlap-aware evaluation')
+            print(f'  Overlap subset: {overlap_info["num_overlap"]}/'
+                  f'{overlap_info["num_total"]} instances '
+                  f'({overlap_info["overlap_ratio"]:.1%})')
+            print(f'  mAP (all):        {avg_mAP_all * 100:.2f}%')
+            print(f'  mAP (overlap):    {avg_mAP_overlap * 100:.2f}%')
+            print(f'  mAP (non-overlap):{avg_mAP_non_overlap * 100:.2f}%')
+            gap = (avg_mAP_non_overlap - avg_mAP_overlap) * 100
+            print(f'  Overlap gap:      {gap:.1f} points')
+            print('=' * 60 + '\n')
+
+        return {
+            'mAP_all': avg_mAP_all,
+            'mAP_overlap': avg_mAP_overlap,
+            'mAP_non_overlap': avg_mAP_non_overlap,
+            'overlap_ratio': overlap_info['overlap_ratio'],
+            'mAP_per_tiou_all': mAP_all,
+            'mAP_per_tiou_overlap': mAP_overlap,
+            'mAP_per_tiou_non_overlap': mAP_non_overlap,
+        }
+
     def evaluate(self, preds, verbose=True):
         """Evaluates a prediction file. For the detection task we measure the
         interpolated mean average precision to measure the performance of a
