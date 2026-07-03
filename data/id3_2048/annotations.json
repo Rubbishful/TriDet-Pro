@@ -1,0 +1,43 @@
+{
+  "database": {
+    "02": {
+      "subset": "test",
+      "fps": 25,
+      "duration": 4.68,
+      "annotations": []
+    },
+    "序列 01": {
+      "subset": "test",
+      "fps": 25,
+      "duration": 214.52,
+      "annotations": []
+    },
+    "_dummy_": {
+      "subset": "test",
+      "fps": 25,
+      "duration": 0.1,
+      "annotations": [
+        {"segment": [0, 0.01], "label": "BaseballPitch", "label_id": 0},
+        {"segment": [0, 0.01], "label": "BasketballDunk", "label_id": 1},
+        {"segment": [0, 0.01], "label": "Billiards", "label_id": 2},
+        {"segment": [0, 0.01], "label": "CleanAndJerk", "label_id": 3},
+        {"segment": [0, 0.01], "label": "CliffDiving", "label_id": 4},
+        {"segment": [0, 0.01], "label": "CricketBowling", "label_id": 5},
+        {"segment": [0, 0.01], "label": "CricketShot", "label_id": 6},
+        {"segment": [0, 0.01], "label": "Diving", "label_id": 7},
+        {"segment": [0, 0.01], "label": "FrisbeeCatch", "label_id": 8},
+        {"segment": [0, 0.01], "label": "GolfSwing", "label_id": 9},
+        {"segment": [0, 0.01], "label": "HammerThrow", "label_id": 10},
+        {"segment": [0, 0.01], "label": "HighJump", "label_id": 11},
+        {"segment": [0, 0.01], "label": "JavelinThrow", "label_id": 12},
+        {"segment": [0, 0.01], "label": "LongJump", "label_id": 13},
+        {"segment": [0, 0.01], "label": "PoleVault", "label_id": 14},
+        {"segment": [0, 0.01], "label": "Shotput", "label_id": 15},
+        {"segment": [0, 0.01], "label": "SoccerPenalty", "label_id": 16},
+        {"segment": [0, 0.01], "label": "TennisSwing", "label_id": 17},
+        {"segment": [0, 0.01], "label": "ThrowDiscus", "label_id": 18},
+        {"segment": [0, 0.01], "label": "VolleyballSpiking", "label_id": 19}
+      ]
+    }
+  }
+}
