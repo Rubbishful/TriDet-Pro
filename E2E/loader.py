@@ -37,7 +37,7 @@ def load_single_frame(frame_path, resize_dims=None):
     if resize_dims is not None:
         img = img.resize(resize_dims, Image.LANCZOS)
 
-    data = np.array(img).astype(np.float64)
+    data = np.array(img).astype(np.float32)
     data = (data * 2.0 / 255.0) - 1.0
     return data
 
@@ -136,7 +136,7 @@ def load_frames_from_video(video_path, target_fps=None,
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             if target_size is not None:
                 frame = cv2.resize(frame, target_size, interpolation=cv2.INTER_LINEAR)
-            data = frame.astype(np.float64)
+            data = frame.astype(np.float32)
             data = (data * 2.0 / 255.0) - 1.0
             frames.append(data)
             next_sample += sample_interval

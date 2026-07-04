@@ -49,7 +49,7 @@ def compute_optical_flow(frames, flow_clip=20.0):
             None, 0.5, 3, 15, 3, 5, 1.2, 0
         )  # (H, W, 2)
         # Clip and normalize to [-1, 1]
-        flow = np.clip(flow, -flow_clip, flow_clip) / flow_clip
+        flow = (np.clip(flow, -flow_clip, flow_clip) / flow_clip).astype(np.float32)
         flow_list.append(flow)
 
     return np.stack(flow_list, axis=0)  # (T-1, H, W, 2)

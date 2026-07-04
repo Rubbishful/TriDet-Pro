@@ -1,41 +1,41 @@
 """
-TriDet 批处理流水线 —— 自动处理整个文件夹的视频。
+TriDet Batch Pipeline — process all videos in a folder end-to-end.
 
-功能:
-  1. 扫描输入文件夹中所有视频
-  2. 批量提取 I3D 2048-dim (RGB+Flow) 特征
-  3. 自动生成标注 JSON 和配置文件
-  4. 运行 TriDet 推理 (GPU)
-  5. 输出每个视频的检测结果
+Workflow:
+  1. Scan input folder for video files
+  2. Extract I3D 2048-dim (RGB+Flow) features in batch
+  3. Auto-generate annotation JSON and config YAML
+  4. Run TriDet inference (GPU)
+  5. Export per-video detection results
 
-用法:
+Usage:
   python scripts/batch_pipeline.py \
       --video_dir ./input_videos \
       --output_dir ./pipeline_output \
       --checkpoint ./epoch_039.pth.tar \
       --device cuda:0
 
-输出:
+Output:
   output_dir/
-  ├── features/          # 特征 .npy 文件
-  ├── meta.json          # 特征提取元信息
-  ├── config.yaml        # 自动生成的 TriDet 配置
-  ├── annotations.json   # 自动生成的标注文件
-  ├── predictions.pkl    # 所有视频的原始预测
-  └── results.csv        # 每个视频的 Top-K 预测表格
+  ├── features/          # .npy feature files
+  ├── meta.json          # feature extraction metadata
+  ├── config.yaml        # auto-generated TriDet config
+  ├── annotations.json   # auto-generated annotation file
+  ├── predictions.pkl    # raw predictions for all videos
+  └── results.csv        # Top-K prediction table per video
 """
 
 import argparse
 import csv
 import json
 import os
+import pickle
 import sys
 import time
-import pickle
-import subprocess
 
 import numpy as np
 import torch
+import yaml
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -46,12 +46,15 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 sys.path.insert(0, _PROJECT_ROOT)
 sys.path.insert(0, _SCRIPT_DIR)
 
-from extract_features import (
-    load_i3d_model, load_frames_from_video, build_windows,
-    extract_features_for_video, compute_optical_flow_farneback,
+from E2E.features import (
+    build_windows,
+    extract_features_for_video,
+    load_i3d_model,
 )
+from E2E.flow import compute_optical_flow
+from E2E.loader import load_frames_from_video
 from libs.core import load_config
-from libs.datasets import make_dataset, make_data_loader
+from libs.datasets import make_data_loader, make_dataset
 from libs.modeling import make_meta_arch
 from libs.utils import fix_random_seed
 
@@ -88,14 +91,34 @@ LABEL_MAP = {
 # ---------------------------------------------------------------------------
 
 def extract_features_for_videos(video_dir, output_dir, args):
-    """
-    扫描 video_dir, 为每个视频提取 I3D 特征 (2048-dim).
-    返回 video_id → {fps, duration, total_frames, num_windows} 的元信息.
-    """
-    import cv2
-    from PIL import Image
+    """Extract I3D features (2048-dim RGB+Flow) for all videos in a folder.
 
-    VIDEO_EXTS = ('.mp4', '.avi', '.mkv', '.mov', '.webm', '.MP4', '.AVI', '.MKV', '.MOV')
+    Scans *video_dir* for video files, loads the I3D RGB and Flow models,
+    then processes each video through frame loading, window building,
+    RGB feature extraction, optical-flow computation, and Flow feature
+    extraction.  Features are concatenated and saved as ``.npy`` files.
+
+    Args:
+        video_dir: Path to the folder containing input video files.
+        output_dir: Path where ``.npy`` feature files and ``meta.json``
+            will be written.
+        args: Parsed command-line arguments (argparse.Namespace). Expected
+            attributes: device, rgb_model, flow_model, frame_width,
+            frame_height, video_fps, num_frames, feat_stride, sample_mode,
+            crop_size, batch_size, overwrite.
+
+    Returns:
+        dict[str, dict]: Mapping from ``video_id`` to metadata dict with
+            keys ``fps``, ``duration``, ``total_frames``, ``num_windows``.
+
+    Raises:
+        FileNotFoundError: If no video files are found in *video_dir*.
+    """
+
+    VIDEO_EXTS = (".mp4", ".avi", ".mkv", ".mov", ".webm", ".MP4", ".AVI", ".MKV", ".MOV")
+
+    if not os.path.isdir(video_dir):
+        raise FileNotFoundError(f"Video directory not found: {video_dir}")
 
     video_files = []
     for f in sorted(os.listdir(video_dir)):
@@ -121,9 +144,9 @@ def extract_features_for_videos(video_dir, output_dir, args):
         flow_model_path = os.path.join(_PROJECT_ROOT, flow_model_path)
 
     print(f"[INFO] Loading RGB model: {rgb_model_path}")
-    model_rgb = load_i3d_model(rgb_model_path, 'rgb', device)
+    model_rgb = load_i3d_model(rgb_model_path, "rgb", device)
     print(f"[INFO] Loading Flow model: {flow_model_path}")
-    model_flow = load_i3d_model(flow_model_path, 'flow', device)
+    model_flow = load_i3d_model(flow_model_path, "flow", device)
 
     target_size = (args.frame_width, args.frame_height)
     video_meta = {}
@@ -138,10 +161,10 @@ def extract_features_for_videos(video_dir, output_dir, args):
             # Load info from existing npy
             existing = np.load(npy_path)
             video_meta[video_id] = {
-                'fps': args.video_fps,
-                'duration': existing.shape[0] * args.feat_stride / args.video_fps,
-                'total_frames': existing.shape[0] * args.feat_stride,
-                'num_windows': existing.shape[0],
+                "fps": args.video_fps,
+                "duration": existing.shape[0] * args.feat_stride / args.video_fps,
+                "total_frames": existing.shape[0] * args.feat_stride,
+                "num_windows": existing.shape[0],
             }
             continue
 
@@ -170,7 +193,8 @@ def extract_features_for_videos(video_dir, output_dir, args):
 
             # Flow features
             print(f"  Computing optical flow ({total_frames} frames)...")
-            flow_frames = compute_optical_flow_farneback(frames)
+            flow_frames = compute_optical_flow(frames)
+            del frames  # free RGB frames; only flow_frames needed going forward
             flow_total = flow_frames.shape[0]
             flow_window_indices = build_windows(flow_total, args.num_frames, args.feat_stride)
             feats_flow = extract_features_for_video(
@@ -179,16 +203,21 @@ def extract_features_for_videos(video_dir, output_dir, args):
                 batch_size=args.batch_size, device=device,
             )
 
+            # Align RGB and Flow window counts (flow has T-1 frames; may differ by 1)
+            min_wins = min(feats_rgb.shape[0], feats_flow.shape[0])
+            feats_rgb = feats_rgb[:min_wins]
+            feats_flow = feats_flow[:min_wins]
+
             # Concatenate
             feats = np.concatenate([feats_rgb, feats_flow], axis=1).astype(np.float32)
             np.save(npy_path, feats)
 
             duration = total_frames / actual_fps if actual_fps > 0 else 0
             video_meta[video_id] = {
-                'fps': actual_fps,
-                'duration': duration,
-                'total_frames': total_frames,
-                'num_windows': feats.shape[0],
+                "fps": actual_fps,
+                "duration": duration,
+                "total_frames": total_frames,
+                "num_windows": feats.shape[0],
             }
             print(f"  [OK] frames={total_frames} windows={feats.shape[0]} dim={feats.shape[1]} [{feats.nbytes/1024/1024:.1f}MB]")
 
@@ -198,17 +227,17 @@ def extract_features_for_videos(video_dir, output_dir, args):
 
     # Save meta
     meta = {
-        'config': {
-            'mode': 'rgb+flow',
-            'feat_stride': args.feat_stride,
-            'num_frames': args.num_frames,
-            'crop_size': args.crop_size,
-            'sample_mode': args.sample_mode,
-            'video_fps': args.video_fps,
+        "config": {
+            "mode": "rgb+flow",
+            "feat_stride": args.feat_stride,
+            "num_frames": args.num_frames,
+            "crop_size": args.crop_size,
+            "sample_mode": args.sample_mode,
+            "video_fps": args.video_fps,
         },
-        'videos': video_meta,
+        "videos": video_meta,
     }
-    with open(os.path.join(output_dir, 'meta.json'), 'w') as f:
+    with open(os.path.join(output_dir, "meta.json"), "w") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False, default=str)
 
     return video_meta
@@ -219,7 +248,13 @@ def extract_features_for_videos(video_dir, output_dir, args):
 # ---------------------------------------------------------------------------
 
 def generate_annotations(video_meta, output_path):
-    """生成 THUMOS14 格式的标注 JSON."""
+    """Generate a THUMOS14-format annotation JSON file.
+
+    Args:
+        video_meta: Mapping from video_id to metadata dict (as returned by
+            :func:`extract_features_for_videos`).
+        output_path: File path for the generated ``annotations.json``.
+    """
     database = {}
 
     # Add dummy entry for label_dict population
@@ -230,108 +265,110 @@ def generate_annotations(video_meta, output_path):
         "annotations": [
             {"segment": [0, 0.01], "label": name, "label_id": lid}
             for lid, name in LABEL_MAP.items()
-        ]
+        ],
     }
 
     for video_id, info in video_meta.items():
         database[video_id] = {
             "subset": "test",
-            "fps": info['fps'],
-            "duration": info['duration'],
-            "annotations": []
+            "fps": info["fps"],
+            "duration": info["duration"],
+            "annotations": [],
         }
 
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump({"database": database}, f, indent=2, ensure_ascii=False)
     print(f"[INFO] Annotations saved: {output_path}")
 
 
 def generate_config(output_dir, feat_dir, annotations_path):
-    """生成 TriDet 配置文件 (与训练 config 对齐)."""
-    import yaml
-    try:
-        import yaml
-    except ImportError:
-        # PyYAML should already be installed
-        import yaml
+    """Generate a TriDet inference config YAML aligned with training config.
 
+    Args:
+        output_dir: Root output directory for the pipeline run.
+        feat_dir: Directory containing ``.npy`` feature files.
+        annotations_path: Path to the annotations JSON file.
+
+    Returns:
+        str: Path to the generated ``config.yaml``.
+    """
     config = {
-        'dataset_name': 'thumos',
-        'train_split': ['validation'],
-        'val_split': ['test'],
-        'dataset': {
-            'json_file': annotations_path,
-            'feat_folder': feat_dir,
-            'file_prefix': None,
-            'file_ext': '.npy',
-            'num_classes': 20,
-            'input_dim': 2048,
-            'feat_stride': 4,
-            'num_frames': 16,
-            'default_fps': 25,
-            'downsample_rate': 1,
-            'trunc_thresh': 0.5,
-            'crop_ratio': [0.9, 1.0],
-            'max_seq_len': 2304,
+        "dataset_name": "thumos",
+        "train_split": ["validation"],
+        "val_split": ["test"],
+        "dataset": {
+            "json_file": annotations_path,
+            "feat_folder": feat_dir,
+            "file_prefix": None,
+            "file_ext": ".npy",
+            "num_classes": 20,
+            "input_dim": 2048,
+            "feat_stride": 4,
+            "num_frames": 16,
+            "default_fps": 25,
+            "downsample_rate": 1,
+            "trunc_thresh": 0.5,
+            "crop_ratio": [0.9, 1.0],
+            "max_seq_len": 2304,
         },
-        'model': {
-            'fpn_type': 'identity',
-            'backbone_type': 'SGP',
-            'downsample_type': 'max',
-            'scale_factor': 2,
-            'max_buffer_len_factor': 6.0,
-            'backbone_arch': [2, 2, 5],
-            'n_sgp_win_size': 1,
-            'embd_dim': 512,
-            'embd_kernel_size': 3,
-            'embd_with_ln': True,
-            'fpn_dim': 512,
-            'fpn_with_ln': True,
-            'head_dim': 512,
-            'head_kernel_size': 3,
-            'head_num_layers': 3,
-            'head_with_ln': True,
-            'use_abs_pe': False,
-            'init_conv_vars': 0,
-            'regression_range': [[0, 4], [4, 8], [8, 16], [16, 32], [32, 64], [64, 10000]],
-            'num_bins': 16,
-            'k': 5,
-            'iou_weight_power': 0.2,
-            'use_trident_head': True,
-            'sgp_mlp_dim': 768,
-            'input_noise': 0.0005,
+        "model": {
+            "fpn_type": "identity",
+            "backbone_type": "SGP",
+            "downsample_type": "max",
+            "scale_factor": 2,
+            "max_buffer_len_factor": 6.0,
+            "backbone_arch": [2, 2, 5],
+            "n_sgp_win_size": 1,
+            "embd_dim": 512,
+            "embd_kernel_size": 3,
+            "embd_with_ln": True,
+            "fpn_dim": 512,
+            "fpn_with_ln": True,
+            "head_dim": 512,
+            "head_kernel_size": 3,
+            "head_num_layers": 3,
+            "head_with_ln": True,
+            "use_abs_pe": False,
+            "init_conv_vars": 0,
+            "regression_range": [[0, 4], [4, 8], [8, 16], [16, 32], [32, 64], [64, 10000]],
+            "num_bins": 16,
+            "k": 5,
+            "iou_weight_power": 0.2,
+            "use_trident_head": True,
+            "sgp_mlp_dim": 768,
+            "input_noise": 0.0005,
         },
-        'opt': {
-            'learning_rate': 0.0001,
-            'warmup_epochs': 20,
-            'epochs': 20,
-            'weight_decay': 0.025,
+        "opt": {
+            "learning_rate": 0.0001,
+            "warmup_epochs": 20,
+            "epochs": 20,
+            "weight_decay": 0.025,
         },
-        'loader': {'batch_size': 1},
-        'train_cfg': {
-            'init_loss_norm': 100,
-            'clip_grad_l2norm': 1.0,
-            'cls_prior_prob': 0.01,
-            'center_sample': 'radius',
-            'center_sample_radius': 1.5,
-            'droppath': 0.1,
+        "loader": {"batch_size": 1},
+        "train_cfg": {
+            "init_loss_norm": 100,
+            "clip_grad_l2norm": 1.0,
+            "cls_prior_prob": 0.01,
+            "center_sample": "radius",
+            "center_sample_radius": 1.5,
+            "droppath": 0.1,
         },
-        'test_cfg': {
-            'voting_thresh': 0.7,
-            'pre_nms_topk': 2000,
-            'max_seg_num': 2000,
-            'min_score': 0.001,
-            'multiclass_nms': True,
-            'nms_sigma': 0.5,
-            'nms_method': 'soft',
-            'duration_thresh': 0.05,
-            'iou_threshold': 0.1,
+        "test_cfg": {
+            "voting_thresh": 0.7,
+            "pre_nms_topk": 2000,
+            "max_seg_num": 2000,
+            "min_score": 0.001,
+            "multiclass_nms": True,
+            "nms_sigma": 0.5,
+            "nms_method": "soft",
+            "duration_thresh": 0.05,
+            "iou_threshold": 0.1,
         },
-        'output_folder': './ckpt/',
+        "output_folder": "./ckpt/",
     }
 
-    config_path = os.path.join(output_dir, 'config.yaml')
-    with open(config_path, 'w') as f:
+    config_path = os.path.join(output_dir, "config.yaml")
+    with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
     print(f"[INFO] Config saved: {config_path}")
     return config_path
@@ -342,50 +379,58 @@ def generate_config(output_dir, feat_dir, annotations_path):
 # ---------------------------------------------------------------------------
 
 def run_tridet_inference(config_path, checkpoint_path, output_dir, device):
-    """
-    加载 TriDet 模型, 对数据集中所有视频进行推理.
-    返回原始预测 dict.
+    """Load the TriDet model and run inference on all videos in the dataset.
+
+    Args:
+        config_path: Path to the TriDet config YAML file.
+        checkpoint_path: Path to the ``.pth.tar`` checkpoint.
+        output_dir: Output directory (unused; reserved for future use).
+        device: Torch device string (e.g. ``"cuda:0"``).
+
+    Returns:
+        dict: Raw predictions with keys ``video-id``, ``t-start``,
+            ``t-end``, ``label``, ``score``.
     """
     print(f"\n{'='*60}")
     print(f"  Step 3: TriDet Inference")
     print(f"{'='*60}")
 
     cfg = load_config(config_path)
-    cfg['devices'] = [device]
+    cfg["devices"] = [device]
 
-    rng = fix_random_seed(cfg.get('init_rand_seed', 1234567891), include_cuda=True)
+    rng = fix_random_seed(cfg.get("init_rand_seed", 1234567891), include_cuda=True)
 
     # Dataset
     val_dataset = make_dataset(
-        cfg['dataset_name'], False, cfg['val_split'], **cfg['dataset']
+        cfg["dataset_name"], False, cfg["val_split"], **cfg["dataset"]
     )
     val_loader = make_data_loader(
-        val_dataset, False, None, 1, cfg['loader'].get('num_workers', 4)
+        val_dataset, False, None, 1, cfg["loader"].get("num_workers", 4)
     )
 
     # Model
-    model = make_meta_arch(cfg['model_name'], **cfg['model'])
-    model = torch.nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg['devices']])
+    model = make_meta_arch(cfg["model_name"], **cfg["model"])
+    model = torch.nn.DataParallel(model, device_ids=[torch.device(d).index for d in cfg["devices"]])
 
     # Load checkpoint
     print(f"[INFO] Loading checkpoint: {checkpoint_path}")
-    ckpt = torch.load(checkpoint_path, map_location=cfg['devices'][0])
-    if 'state_dict_ema' in ckpt:
-        model.load_state_dict(ckpt['state_dict_ema'])
+    ckpt = torch.load(checkpoint_path, map_location=cfg["devices"][0])
+    if "state_dict_ema" in ckpt:
+        model.load_state_dict(ckpt["state_dict_ema"])
         print("[INFO] Using EMA weights")
     else:
-        model.load_state_dict(ckpt['state_dict'])
+        model.load_state_dict(ckpt["state_dict"])
     del ckpt
 
     model.eval()
 
     # Inference loop
     all_results = {
-        'video-id': [],
-        't-start': [],
-        't-end': [],
-        'label': [],
-        'score': [],
+        "video-id": [],
+        "t-start": [],
+        "t-end": [],
+        "label": [],
+        "score": [],
     }
 
     n_videos = 0
@@ -396,28 +441,29 @@ def run_tridet_inference(config_path, checkpoint_path, output_dir, device):
             output = model(video_list)  # output is list of dicts
 
         for vid_idx in range(len(output)):
-            if output[vid_idx]['segments'].shape[0] > 0:
-                all_results['video-id'].extend(
-                    [output[vid_idx]['video_id']] *
-                    output[vid_idx]['segments'].shape[0]
+            if output[vid_idx]["segments"].shape[0] > 0:
+                all_results["video-id"].extend(
+                    [output[vid_idx]["video_id"]] *
+                    output[vid_idx]["segments"].shape[0]
                 )
-                all_results['t-start'].append(output[vid_idx]['segments'][:, 0].cpu().numpy())
-                all_results['t-end'].append(output[vid_idx]['segments'][:, 1].cpu().numpy())
-                all_results['label'].append(output[vid_idx]['labels'].cpu().numpy())
-                all_results['score'].append(output[vid_idx]['scores'].cpu().numpy())
+                all_results["t-start"].append(output[vid_idx]["segments"][:, 0].cpu().numpy())
+                all_results["t-end"].append(output[vid_idx]["segments"][:, 1].cpu().numpy())
+                all_results["label"].append(output[vid_idx]["labels"].cpu().numpy())
+                all_results["score"].append(output[vid_idx]["scores"].cpu().numpy())
 
             n_videos += 1
 
     t_elapsed = time.time() - t_start
 
     # Concatenate arrays
-    all_results['t-start'] = np.concatenate(all_results['t-start']) if all_results['t-start'] else np.array([])
-    all_results['t-end'] = np.concatenate(all_results['t-end']) if all_results['t-end'] else np.array([])
-    all_results['label'] = np.concatenate(all_results['label']) if all_results['label'] else np.array([])
-    all_results['score'] = np.concatenate(all_results['score']) if all_results['score'] else np.array([])
+    all_results["t-start"] = np.concatenate(all_results["t-start"]) if all_results["t-start"] else np.array([])
+    all_results["t-end"] = np.concatenate(all_results["t-end"]) if all_results["t-end"] else np.array([])
+    all_results["label"] = np.concatenate(all_results["label"]) if all_results["label"] else np.array([])
+    all_results["score"] = np.concatenate(all_results["score"]) if all_results["score"] else np.array([])
 
-    print(f"\n[Profile] Processed {n_videos} videos in {t_elapsed:.1f}s ({t_elapsed/n_videos:.2f}s/video)" if n_videos else "")
-    print(f"[Profile] Total detections: {len(all_results['video-id'])}")
+    if n_videos:
+        print(f"\n[INFO] Processed {n_videos} videos in {t_elapsed:.1f}s ({t_elapsed/n_videos:.2f}s/video)")
+    print(f"[INFO] Total detections: {len(all_results['video-id'])}")
 
     return all_results
 
@@ -427,39 +473,50 @@ def run_tridet_inference(config_path, checkpoint_path, output_dir, device):
 # ---------------------------------------------------------------------------
 
 def export_results(predictions, video_meta, output_dir, top_k=10, min_score=0.01):
-    """导出 CSV 结果和汇总表."""
+    """Export detection results to CSV and print per-video summaries.
+
+    Args:
+        predictions: Raw predictions dict from :func:`run_tridet_inference`.
+        video_meta: Mapping from video_id to metadata dict.
+        output_dir: Directory for ``predictions.pkl`` and ``results.csv``.
+        top_k: Number of top predictions to display per video.
+        min_score: Minimum confidence threshold for CSV output.
+
+    Returns:
+        str: Path to the generated ``results.csv``.
+    """
     print(f"\n{'='*60}")
     print(f"  Step 4: Export Results")
     print(f"{'='*60}")
 
     # Save raw predictions
-    pkl_path = os.path.join(output_dir, 'predictions.pkl')
-    with open(pkl_path, 'wb') as f:
+    pkl_path = os.path.join(output_dir, "predictions.pkl")
+    with open(pkl_path, "wb") as f:
         pickle.dump(predictions, f)
     print(f"[INFO] Raw predictions: {pkl_path}")
 
     # Save CSV per-video
-    csv_path = os.path.join(output_dir, 'results.csv')
-    idx = np.argsort(predictions['score'])[::-1]  # sort by score desc
+    csv_path = os.path.join(output_dir, "results.csv")
+    idx = np.argsort(predictions["score"])[::-1]  # sort by score desc
 
-    with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+    with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
-        writer.writerow(['video_id', 't_start', 't_end', 'action', 'confidence', 'duration_s'])
+        writer.writerow(["video_id", "t_start", "t_end", "action", "confidence", "duration_s"])
 
         written = 0
         for j in idx:
-            score = predictions['score'][j]
+            score = predictions["score"][j]
             if score < min_score:
                 continue
-            video_id = predictions['video-id'][j]
-            t_start = predictions['t-start'][j]
-            t_end = predictions['t-end'][j]
-            label_id = int(predictions['label'][j])
-            action = LABEL_MAP.get(label_id, f'class_{label_id}')
+            video_id = predictions["video-id"][j]
+            t_start = predictions["t-start"][j]
+            t_end = predictions["t-end"][j]
+            label_id = int(predictions["label"][j])
+            action = LABEL_MAP.get(label_id, f"class_{label_id}")
 
             writer.writerow([
-                video_id, f'{t_start:.2f}', f'{t_end:.2f}',
-                action, f'{score:.4f}', f'{t_end - t_start:.2f}'
+                video_id, f"{t_start:.2f}", f"{t_end:.2f}",
+                action, f"{score:.4f}", f"{t_end - t_start:.2f}"
             ])
             written += 1
 
@@ -470,13 +527,13 @@ def export_results(predictions, video_meta, output_dir, top_k=10, min_score=0.01
     print(f"  Per-Video Summary")
     print(f"{'='*60}")
 
-    all_video_ids = set(predictions['video-id'])
+    all_video_ids = set(predictions["video-id"])
     for vid in sorted(all_video_ids):
-        mask = [p == vid for p in predictions['video-id']]
-        video_scores = predictions['score'][np.array(mask)]
-        video_labels = predictions['label'][np.array(mask)]
-        video_starts = predictions['t-start'][np.array(mask)]
-        video_ends = predictions['t-end'][np.array(mask)]
+        mask = [p == vid for p in predictions["video-id"]]
+        video_scores = predictions["score"][np.array(mask)]
+        video_labels = predictions["label"][np.array(mask)]
+        video_starts = predictions["t-start"][np.array(mask)]
+        video_ends = predictions["t-end"][np.array(mask)]
 
         # Top-k for this video
         local_idx = np.argsort(video_scores)[::-1][:top_k]
@@ -494,7 +551,7 @@ def export_results(predictions, video_meta, output_dir, top_k=10, min_score=0.01
                 continue
             t_s = video_starts[li]
             t_e = video_ends[li]
-            lbl = LABEL_MAP.get(int(video_labels[li]), f'class_{int(video_labels[li])}')
+            lbl = LABEL_MAP.get(int(video_labels[li]), f"class_{int(video_labels[li])}")
             print(f"  {rank+1:<5} [{t_s:5.1f}s - {t_e:5.1f}s]  {lbl:<20} {s:>8.4f}")
 
     return csv_path
@@ -505,6 +562,7 @@ def export_results(predictions, video_meta, output_dir, top_k=10, min_score=0.01
 # ---------------------------------------------------------------------------
 
 def main():
+    """Parse command-line arguments and run the full batch pipeline."""
     parser = argparse.ArgumentParser(
         description="TriDet Batch Pipeline — Extract I3D features + Run inference on a folder of videos",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -521,63 +579,71 @@ Examples:
       --video_dir D:/videos \\
       --output_dir D:/results \\
       --checkpoint ./epoch_039.pth.tar \\
-      --rgb_model pytorch-i3d-feature-extraction-master/models/rgb_imagenet.pt \\
-      --flow_model pytorch-i3d-feature-extraction-master/models/flow_imagenet.pt
+      --rgb_model E2E/model/rgb_imagenet.pt \\
+      --flow_model E2E/model/flow_imagenet.pt
 
 Input format:
-  python scripts/batch_pipeline.py --video_dir <输入视频文件夹> --output_dir <输出文件夹> --checkpoint <权重文件>
+  python scripts/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --checkpoint <weights>
         """
     )
 
     # Required
-    parser.add_argument('--video_dir', type=str, required=True,
-                        help='输入视频文件夹路径')
-    parser.add_argument('--output_dir', type=str, required=True,
-                        help='输出文件夹路径')
-    parser.add_argument('--checkpoint', type=str, required=True,
-                        help='TriDet 预训练权重 .pth.tar 文件路径')
+    parser.add_argument("--video_dir", type=str, required=True,
+                        help="Path to the input video folder")
+    parser.add_argument("--output_dir", type=str, required=True,
+                        help="Path to the output folder")
+    parser.add_argument("--checkpoint", type=str, required=True,
+                        help="Path to the TriDet checkpoint .pth.tar file")
 
     # Feature extraction options
-    feat_group = parser.add_argument_group('Feature Extraction')
-    feat_group.add_argument('--rgb_model', type=str,
-                            default='pytorch-i3d-feature-extraction-master/models/rgb_imagenet.pt',
-                            help='RGB I3D 权重路径')
-    feat_group.add_argument('--flow_model', type=str,
-                            default='pytorch-i3d-feature-extraction-master/models/flow_imagenet.pt',
-                            help='Flow I3D 权重路径')
-    feat_group.add_argument('--feat_stride', type=int, default=4)
-    feat_group.add_argument('--num_frames', type=int, default=16)
-    feat_group.add_argument('--crop_size', type=int, default=224)
-    feat_group.add_argument('--sample_mode', type=str, default='center_crop',
-                            choices=['center_crop', 'resize'])
-    feat_group.add_argument('--video_fps', type=int, default=25)
-    feat_group.add_argument('--frame_width', type=int, default=340)
-    feat_group.add_argument('--frame_height', type=int, default=256)
+    feat_group = parser.add_argument_group("Feature Extraction")
+    feat_group.add_argument("--rgb_model", type=str,
+                            default="E2E/model/rgb_imagenet.pt",
+                            help="Path to the RGB I3D weights")
+    feat_group.add_argument("--flow_model", type=str,
+                            default="E2E/model/flow_imagenet.pt",
+                            help="Path to the Flow I3D weights")
+    feat_group.add_argument("--feat_stride", type=int, default=4)
+    feat_group.add_argument("--num_frames", type=int, default=16)
+    feat_group.add_argument("--crop_size", type=int, default=224)
+    feat_group.add_argument("--sample_mode", type=str, default="center_crop",
+                            choices=["center_crop", "resize"])
+    feat_group.add_argument("--video_fps", type=int, default=25)
+    feat_group.add_argument("--frame_width", type=int, default=340)
+    feat_group.add_argument("--frame_height", type=int, default=256)
 
     # Inference options
-    infer_group = parser.add_argument_group('Inference')
-    infer_group.add_argument('--device', type=str, default='cuda:0',
-                             help='计算设备 (cuda:0 或 cpu)')
-    infer_group.add_argument('--batch_size', type=int, default=16,
-                             help='I3D 推理 batch size')
-    infer_group.add_argument('--min_score', type=float, default=0.01,
-                             help='导出 CSV 的最低置信度阈值')
+    infer_group = parser.add_argument_group("Inference")
+    infer_group.add_argument("--device", type=str, default="cuda:0",
+                             help="Compute device (cuda:0 or cpu)")
+    infer_group.add_argument("--batch_size", type=int, default=16,
+                             help="I3D inference batch size")
+    infer_group.add_argument("--min_score", type=float, default=0.01,
+                             help="Minimum confidence threshold for CSV export")
 
     # Misc
-    parser.add_argument('--overwrite', action='store_true', default=False,
-                        help='覆盖已有的特征文件')
-    parser.add_argument('--top_k', type=int, default=5,
-                        help='每个视频显示 Top-K 预测')
-    parser.add_argument('--skip_feature_extraction', action='store_true', default=False,
-                        help='跳过特征提取 (使用已有的 .npy 文件)')
+    parser.add_argument("--overwrite", action="store_true", default=False,
+                        help="Overwrite existing feature files")
+    parser.add_argument("--top_k", type=int, default=5,
+                        help="Number of top-k predictions to display per video")
+    parser.add_argument("--skip_feature_extraction", action="store_true", default=False,
+                        help="Skip feature extraction (use existing .npy files)")
 
     args = parser.parse_args()
 
     # Resolve paths
     video_dir = os.path.abspath(args.video_dir)
     output_dir = os.path.abspath(args.output_dir)
-    feat_dir = os.path.join(output_dir, 'features')
-    annotations_path = os.path.join(output_dir, 'annotations.json')
+    feat_dir = os.path.join(output_dir, "features")
+    annotations_path = os.path.join(output_dir, "annotations.json")
+
+    # Validate inputs
+    if not os.path.isdir(video_dir):
+        print(f"[ERROR] Video directory not found: {video_dir}")
+        sys.exit(1)
+    if not args.skip_feature_extraction and not os.path.isfile(args.checkpoint):
+        print(f"[ERROR] Checkpoint not found: {args.checkpoint}")
+        sys.exit(1)
 
     print("=" * 60)
     print("  TriDet Batch Pipeline")
@@ -594,11 +660,11 @@ Input format:
         video_meta = extract_features_for_videos(video_dir, feat_dir, args)
     else:
         # Try to load existing meta
-        meta_path = os.path.join(feat_dir, 'meta.json')
+        meta_path = os.path.join(feat_dir, "meta.json")
         if os.path.exists(meta_path):
-            with open(meta_path, 'r') as f:
+            with open(meta_path, "r") as f:
                 meta = json.load(f)
-            video_meta = meta.get('videos', {})
+            video_meta = meta.get("videos", {})
             print(f"[INFO] Loaded existing meta: {len(video_meta)} videos")
         else:
             print("[WARN] --skip_feature_extraction but no meta.json found")
@@ -642,5 +708,5 @@ Input format:
     print(f"    Annotations:    {annotations_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
