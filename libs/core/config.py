@@ -101,6 +101,11 @@ DEFAULTS = {
         "iou_head_dim": 512,
         "iou_head_layers": 4,
         "iou_loss_weight": 1.0,
+        "iou_loss_type": "qfl",     # IoU head loss: 'bce' | 'qfl'
+        "iou_qfl_beta": 2.0,       # QFL modulating factor (only when iou_loss_type='qfl')
+        "iou_warmup_epochs": 5,    # warmup epochs before IoU loss activates
+        "iou_per_level": False,    # per-FPN-level IoU heads
+        "iou_head_residual": False,  # residual connections in IoUHead
         # Task-Aligned Assigner
         "tal_topk": 0,          # 0 = disable TAL
         "tal_alpha": 1.0,

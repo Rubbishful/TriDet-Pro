@@ -364,3 +364,41 @@ def ctr_focaler_diou_loss_1d(
         loss = loss.sum()
 
     return loss
+
+
+@torch.jit.script
+def quality_focal_loss(
+        inputs: torch.Tensor,
+        targets: torch.Tensor,
+        beta: float = 2.0,
+        reduction: str = 'none',
+) -> torch.Tensor:
+    """
+    Quality Focal Loss from GFLv1 (Li et al., 2020)
+    https://arxiv.org/abs/2006.04388
+
+    Designed for continuous labels (e.g., IoU targets) in [0, 1].
+    Modulating factor |targets - sigmoid(inputs)|^beta focuses on
+    hard examples and down-weights easy ones.
+
+    QFL = -|y - sigma|^beta * ((1-y)*log(1-sigma) + y*log(sigma))
+
+    Args:
+        inputs: logits (any shape)
+        targets: continuous values in [0, 1] (same shape as inputs)
+        beta: modulating factor exponent (default 2.0 from the paper)
+        reduction: 'none' | 'mean' | 'sum'
+    """
+    inputs = inputs.float()
+    targets = targets.float()
+    p = torch.sigmoid(inputs)
+    ce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction='none')
+    modulating_factor = torch.abs(targets - p) ** beta
+    loss = modulating_factor * ce_loss
+
+    if reduction == 'mean':
+        loss = loss.mean() if loss.numel() > 0 else 0.0 * loss.sum()
+    elif reduction == 'sum':
+        loss = loss.sum()
+
+    return loss

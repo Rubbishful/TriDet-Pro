@@ -1,0 +1,15 @@
+# Round 1: BCE IoU loss weight search.
+# Goal: verify BCE > QFL and find best iou_loss_weight.
+#
+# Total combinations: 5
+# Estimated time (single GPU, 60 epochs/trial): ~10 min/trial -> ~50 minutes total
+#
+# Usage:
+#   python tools/search_hyperparams.py configs/thumos_i3d_iou_tal_iteration.yaml \
+#       --search-config configs/para_search/iou_bce_round1.yaml \
+#       --trials 0 --max-epochs 60 --step 5
+
+search:
+  iou_loss_weight:
+    type: choice
+    values: [0.25, 0.5, 1.0, 2.0, 4.0]

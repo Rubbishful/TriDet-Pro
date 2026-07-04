@@ -8,6 +8,7 @@ from .blocks import MaskedConv1D, Scale, LayerNorm
 from .losses import (
     ctr_diou_loss_1d, sigmoid_focal_loss, ctr_giou_loss_1d,
     ctr_eiou_loss_1d, ctr_alpha_diou_loss_1d, ctr_focaler_diou_loss_1d,
+    quality_focal_loss,
 )
 from .models import register_meta_arch, make_backbone, make_neck, make_generator
 from ..utils import batched_nms
@@ -187,9 +188,12 @@ class IoUHead(nn.Module):
             kernel_size=3,
             act_layer=nn.ReLU,
             with_ln=False,
+            prior_prob=0.01,
+            use_residual=False,
     ):
         super().__init__()
         self.act = act_layer()
+        self.use_residual = use_residual
 
         self.head = nn.ModuleList()
         self.norm = nn.ModuleList()
@@ -219,6 +223,10 @@ class IoUHead(nn.Module):
             stride=1, padding=kernel_size // 2
         )
 
+        # bias init toward low IoU to prevent high initial BCE on negatives
+        bias_value = -(math.log((1 - prior_prob) / prior_prob))
+        torch.nn.init.constant_(self.iou_head.conv.bias, bias_value)
+
     def forward(self, fpn_feats, fpn_masks):
         assert len(fpn_feats) == len(fpn_masks)
 
@@ -226,8 +234,11 @@ class IoUHead(nn.Module):
         for cur_feat, cur_mask in zip(fpn_feats, fpn_masks):
             cur_out = cur_feat
             for idx in range(len(self.head)):
+                identity = cur_out
                 cur_out, _ = self.head[idx](cur_out, cur_mask)
                 cur_out = self.act(self.norm[idx](cur_out))
+                if self.use_residual and idx > 0:
+                    cur_out = cur_out + identity
             cur_iou, _ = self.iou_head(cur_out, cur_mask)
             out_iou += (cur_iou,)
 
@@ -282,6 +293,11 @@ class TriDet(nn.Module):
             iou_head_dim=512,  # feat dim for IoU head
             iou_head_layers=4,  # number of layers in IoU head
             iou_loss_weight=1.0,  # weight for IoU prediction loss
+            iou_loss_type="qfl",  # IoU head loss: 'bce' | 'qfl'
+            iou_qfl_beta=2.0,  # QFL modulating factor (only when iou_loss_type='qfl')
+            iou_warmup_epochs=5,  # warmup epochs before IoU loss activates
+            iou_per_level=False,  # per-FPN-level IoU heads
+            iou_head_residual=False,  # residual connections in IoUHead
             tal_topk=0,  # top-K for TAL, 0 = disable
             tal_alpha=1.0,  # cls score exponent in TAL alignment
             tal_beta=4.0,  # IoU exponent in TAL alignment
@@ -328,6 +344,11 @@ class TriDet(nn.Module):
         self.reg_loss_kwargs = reg_loss_kwargs if reg_loss_kwargs is not None else {}
         self.use_iou_head = use_iou_head
         self.iou_loss_weight = iou_loss_weight
+        self.iou_loss_type = iou_loss_type
+        self.iou_qfl_beta = iou_qfl_beta
+        self.iou_warmup_epochs = iou_warmup_epochs
+        self.iou_per_level = iou_per_level
+        self.iou_head_residual = iou_head_residual
         self.use_tal = tal_topk > 0
         self.tal_topk = tal_topk
         self.tal_alpha = tal_alpha
@@ -458,14 +479,22 @@ class TriDet(nn.Module):
                 num_bins=0
             )
 
-        # IoU prediction head (shared across FPN levels)
+        # IoU prediction head
         if self.use_iou_head:
-            self.iou_head = IoUHead(
-                fpn_dim, iou_head_dim,
+            iou_head_kwargs = dict(
                 num_layers=iou_head_layers,
                 kernel_size=head_kernel_size,
                 with_ln=head_with_ln,
+                prior_prob=self.train_cls_prior_prob,
+                use_residual=iou_head_residual,
             )
+            if iou_per_level:
+                self.iou_head = nn.ModuleList([
+                    IoUHead(fpn_dim, iou_head_dim, **iou_head_kwargs)
+                    for _ in self.fpn_strides
+                ])
+            else:
+                self.iou_head = IoUHead(fpn_dim, iou_head_dim, **iou_head_kwargs)
         else:
             self.iou_head = None
 
@@ -558,7 +587,13 @@ class TriDet(nn.Module):
 
         # out_iou: List[B, 1, T_i]
         if self.use_iou_head:
-            out_iou_logits = self.iou_head(fpn_feats, fpn_masks)
+            if self.iou_per_level:
+                out_iou_logits = tuple(
+                    head((feat,), (mask,))[0]
+                    for head, feat, mask in zip(self.iou_head, fpn_feats, fpn_masks)
+                )
+            else:
+                out_iou_logits = self.iou_head(fpn_feats, fpn_masks)
         else:
             out_iou_logits = None
 
@@ -968,14 +1003,14 @@ class TriDet(nn.Module):
         cls_loss = cls_loss.sum()
         cls_loss /= self.loss_normalizer
 
-        # 1.5 IoU prediction loss
-        if self.use_iou_head:
+        # 1.5 IoU prediction loss (with warmup)
+        if self.use_iou_head and self.current_epoch >= self.iou_warmup_epochs:
             iou_logits_cat = torch.cat(out_iou_logits, dim=1).squeeze(-1)  # [B, FT]
             with torch.no_grad():
                 iou_target = torch.zeros_like(iou_logits_cat)
                 if num_pos > 0:
+                    # compute actual IoU for positive positions
                     if self.use_trident_head:
-                        # gather class-specific offset per positive position
                         pos_decoded = all_decoded_offsets[pos_mask]  # [num_pos, C, 2]
                         pos_cls_idx = gt_cls[pos_mask].argmax(dim=1)  # [num_pos]
                         pos_pred_offs = pos_decoded[
@@ -983,17 +1018,23 @@ class TriDet(nn.Module):
                             pos_cls_idx, :
                         ]  # [num_pos, 2]
                         pos_gt_offs = gt_offsets_pos  # [num_pos, 2]
-                        actual_iou = 1.0 - ctr_giou_loss_1d(
-                            pos_pred_offs.detach(), pos_gt_offs, reduction='none'
-                        )
                     else:
-                        actual_iou = 1.0 - ctr_giou_loss_1d(
-                            pred_offsets.detach(), gt_offsets, reduction='none'
-                        )
+                        pos_pred_offs = pred_offsets
+                        pos_gt_offs = gt_offsets
+                    actual_iou = 1.0 - ctr_giou_loss_1d(
+                        pos_pred_offs.detach(), pos_gt_offs, reduction='none'
+                    )
                     iou_target[pos_mask] = actual_iou
-            iou_loss = F.binary_cross_entropy_with_logits(
-                iou_logits_cat, iou_target, reduction='sum'
-            )
+            # IoU loss on all valid positions: negatives target=0, positives target=IoU
+            if self.iou_loss_type == 'bce':
+                iou_loss = F.binary_cross_entropy_with_logits(
+                    iou_logits_cat[valid_mask], iou_target[valid_mask], reduction='sum'
+                )
+            else:
+                iou_loss = quality_focal_loss(
+                    iou_logits_cat[valid_mask], iou_target[valid_mask],
+                    beta=self.iou_qfl_beta, reduction='sum'
+                )
             iou_loss /= self.loss_normalizer
         else:
             iou_loss = None

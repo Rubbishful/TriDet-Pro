@@ -1,0 +1,27 @@
+# Round 2: Architecture + capacity search on top of best iou_loss_weight from Round 1.
+# Update iou_loss_weight values based on Round 1 best before running.
+#
+# Total combinations: 3 x 2 x 2 x 3 = 36 (~6 hours at 10 min/trial)
+# To reduce time, set iou_head_residual to a single value after first few trials.
+#
+# Usage:
+#   python tools/search_hyperparams.py configs/thumos_i3d_iou_tal_iteration.yaml \
+#       --search-config configs/para_search/iou_bce_round2.yaml \
+#       --trials 0 --max-epochs 60 --step 5
+
+search:
+  iou_loss_weight:
+    type: choice
+    values: [0.5, 1.0, 1.5]   # TODO: update based on Round 1 best
+
+  iou_per_level:
+    type: choice
+    values: [false, true]
+
+  iou_head_residual:
+    type: choice
+    values: [false, true]
+
+  iou_head_layers:
+    type: choice
+    values: [2, 3, 4]
