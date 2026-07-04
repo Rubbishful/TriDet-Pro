@@ -65,7 +65,7 @@ DEFAULTS = {
         # kernel size for reg/cls/center heads
         "head_kernel_size": 3,
         # kernel size for boundary heads
-        "boudary_kernel_size": 3,
+        "boundary_kernel_size": 3,
         # number of layers in the head (including the final one)
         "head_num_layers": 3,
         # if attach group norm to heads
@@ -150,6 +150,8 @@ def _merge(src, dst):
         if k in dst:
             if isinstance(v, dict):
                 _merge(src[k], dst[k])
+            else:
+                dst[k] = v
         else:
             dst[k] = v
 
