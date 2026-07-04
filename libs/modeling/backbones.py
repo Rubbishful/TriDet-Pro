@@ -85,9 +85,23 @@ class SGPBackbone(nn.Module):
             if module.bias is not None:
                 torch.nn.init.constant_(module.bias, 0.)
 
-    def forward(self, x, mask):
-        # x: batch size, feature channel, sequence length,
-        # mask: batch size, 1, sequence length (bool)
+    def forward(self, x: torch.Tensor, mask: torch.Tensor):
+        """SGP 骨干网络前向传播。
+
+        数据流:
+            embd (n_convs 层 MaskedConv1D) → stem (n_stem 层 SGPBlock, stride=1)
+            → branch (n_branch 层 SGPBlock, 每层 stride=scale_factor)
+            每经过一层 branch，T 缩短为 T//scale_factor。
+
+        Args:
+            x: (B, C_in, T) 输入特征, C_in=input_dim (I3D特征为2048)
+            mask: (B, 1, T) 有效位置 bool mask
+        Returns:
+            feats: Tuple[6] of (B, n_embd, T//scale_factor^i), i=0..5
+                stem 输出 + 每层 branch 后的多尺度特征
+            masks: Tuple[6] of (B, 1, T//scale_factor^i), i=0..5
+                对应分辨率的 bool mask
+        """
         B, C, T = x.size()
 
         # embedding network
@@ -192,9 +206,18 @@ class ConvBackbone(nn.Module):
             if module.bias is not None:
                 torch.nn.init.constant_(module.bias, 0.)
 
-    def forward(self, x, mask):
-        # x: batch size, feature channel, sequence length,
-        # mask: batch size, 1, sequence length (bool)
+    def forward(self, x: torch.Tensor, mask: torch.Tensor):
+        """纯卷积骨干网络（不含 SGP 注意力，用于消融对比）。
+
+        结构: embd → stem(ConvBlock, stride=1) → branch(ConvBlock, 每层 stride=scale_factor)
+
+        Args:
+            x: (B, C_in, T) 输入特征
+            mask: (B, 1, T) 有效位置 bool mask
+        Returns:
+            feats: Tuple[6] of (B, n_embd, T//scale_factor^i), i=0..5
+            masks: Tuple[6] of (B, 1, T//scale_factor^i), i=0..5
+        """
         B, C, T = x.size()
 
         # embedding network

@@ -141,9 +141,19 @@ class THUMOS14Dataset(Dataset):
         return len(self.data_list)
 
     def __getitem__(self, idx):
-        # directly return a (truncated) data point (so it is very fast!)
-        # auto batching will be disabled in the subsequent dataloader
-        # instead the model will need to decide how to batch / preporcess the data
+        """返回单个视频的预提取特征与标注。
+
+        Returns:
+            dict:
+                video_id (str): 视频文件名（无后缀）
+                feats (Tensor): (C=input_dim, T) 预提取 I3D 特征
+                segments (Tensor or None): (N, 2) GT 动作段 [start, end]，以特征网格为单位
+                labels (Tensor or None): (N,) GT 类别索引
+                fps (float): 视频帧率
+                duration (float): 视频时长（秒）
+                feat_stride (int): 特征帧采样间隔
+                feat_num_frames (int): 每特征帧覆盖的原始帧数
+        """
         video_item = self.data_list[idx]
 
         # load features

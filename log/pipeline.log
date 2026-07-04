@@ -1,0 +1,12 @@
+============================================================
+  Phase 1/2: 评估已有 checkpoint (baseline, A1, A2)
+============================================================
+
+  [baseline] Baseline (SGP+Trident+DIoU)  (40ep)
+
+  [eval baseline]
+  [TIMEOUT] after 60min
+
+  [A1] Trident-head→普通回归头  (40ep)
+
+  [eval A1]

@@ -78,7 +78,19 @@ class PointGenerator(nn.Module):
         return BufferList(points_list)
 
     def forward(self, feats):
-        # feats will be a list of torch tensors
+        """为 FPN 各层生成时间轴 anchor 点。
+
+        每个点包含 4 个值: [时间位置, 回归范围下限, 回归范围上限, 步长]
+
+        Args:
+            feats: Tuple[L] of (B, C, T_i) FPN 各层特征, 仅用于确定 T_i
+        Returns:
+            pts_list: Tuple[L] of (T_i, 4) 每层的 anchor 点, L=fpn_levels
+                列 0: 时间网格坐标 (0, stride, 2*stride, ...)
+                列 1: 该层允许回归的最小值 (regression_range[0])
+                列 2: 该层允许回归的最大值 (regression_range[1])
+                列 3: 该层的 stride
+        """
         assert len(feats) == self.fpn_levels
         pts_list = []
         feat_lens = [feat.shape[-1] for feat in feats]
