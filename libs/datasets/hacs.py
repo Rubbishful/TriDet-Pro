@@ -130,8 +130,7 @@ class HacsDataset(Dataset):
                          'fps': fps,
                          'duration': duration,
                          'segments': segments,
-                         'labels': labels
-                                                  )
+                         'labels': labels})
 
         return tuple(dict_db), label_dict
 
