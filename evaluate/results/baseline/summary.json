@@ -1,0 +1,15 @@
+{
+  "config": "configs/thumos_i3d.yaml",
+  "checkpoint": "ckpt/thumos_i3d_baseline\\epoch_039.pth.tar",
+  "mAP_per_tiou": {
+    "0.30": 75.12647948078481,
+    "0.40": 70.22787411552245,
+    "0.50": 62.64875447299271,
+    "0.60": 50.23026855934758,
+    "0.70": 38.33070511675001
+  },
+  "avg_mAP": 59.31281634907951,
+  "n_videos": 212,
+  "n_predictions": 12680,
+  "inference_time_s": 480.1878340244293
+}
