@@ -96,6 +96,16 @@ DEFAULTS = {
         "iou_weight_power": 1.,
         # add gaussian noise with the variance, play a similar role to position embedding
         "input_noise": 0,
+        # IoU prediction head
+        "use_iou_head": False,
+        "iou_head_dim": 512,
+        "iou_head_layers": 4,
+        "iou_loss_weight": 1.0,
+        # Task-Aligned Assigner
+        "tal_topk": 0,          # 0 = disable TAL
+        "tal_alpha": 1.0,
+        "tal_beta": 4.0,
+        "tal_start_epoch": 5,
 
     },
     "train_cfg": {

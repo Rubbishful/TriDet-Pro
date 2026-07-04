@@ -278,6 +278,14 @@ def train_one_epoch(
     # switch to train mode
     model.train()
 
+    # set current epoch for TAL activation scheduling
+    if hasattr(model, 'module'):
+        if hasattr(model.module, 'set_epoch'):
+            model.module.set_epoch(curr_epoch)
+    else:
+        if hasattr(model, 'set_epoch'):
+            model.set_epoch(curr_epoch)
+
     # optional: collect per-step loss records for external logging / plotting
     loss_records = [] if return_losses else None
 

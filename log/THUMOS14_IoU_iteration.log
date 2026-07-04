@@ -1,0 +1,7 @@
+|tIoU = 0.30: mAP = 62.98 (%)
+|tIoU = 0.40: mAP = 60.64 (%)
+|tIoU = 0.50: mAP = 55.77 (%)
+|tIoU = 0.60: mAP = 47.80 (%)
+|tIoU = 0.70: mAP = 36.73 (%)
+Avearge mAP: 52.78 (%)
+All done! Total time: 25.90 sec
