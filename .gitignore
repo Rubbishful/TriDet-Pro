@@ -35,7 +35,13 @@ result/
 .venv
 
 # System
-.DS_store
+.DS_Store
+node_modules/
+package.json
+package-lock.json
+
+# Training logs
+log/
 
 # build
 *.pyd
