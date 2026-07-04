@@ -1,0 +1,236 @@
+
+============================================================
+  Training 19 experiments (~19h)
+============================================================
+
+=======================================================
+  [1/19] A3_w3: SGP窗口 w=3 [A3]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A3_w3.yaml
+
+  [train A3_w3]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A3_w3_ez_c9i_o.log)
+
+=======================================================
+  [2/19] A3_w5: SGP窗口 w=5 [A3]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A3_w5.yaml
+
+  [train A3_w5]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A3_w5_gacnlztq.log)
+
+=======================================================
+  [3/19] A3_w7: SGP窗口 w=7 [A3]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A3_w7.yaml
+
+  [train A3_w7]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A3_w7_cx4vqakt.log)
+
+=======================================================
+  [4/19] A3_w9: SGP窗口 w=9 [A3]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A3_w9.yaml
+
+  [train A3_w9]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A3_w9_bwyrc5uk.log)
+
+=======================================================
+  [5/19] A3_w11: SGP窗口 w=11 [A3]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A3_w11.yaml
+
+  [train A3_w11]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A3_w11_azmh6lc_.log)
+
+=======================================================
+  [6/19] A3_pl: SGP窗口 [1,3,5,7,9,11] [A3]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A3_pl.yaml
+
+  [train A3_pl]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A3_pl_dazol8bb.log)
+
+=======================================================
+  [7/19] A4_k1.0: k=1.0 [A4]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A4_k1.0.yaml
+
+  [train A4_k1.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A4_k1.0_so6zfs9j.log)
+
+=======================================================
+  [8/19] A4_k1.5: k=1.5 [A4]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A4_k1.5.yaml
+
+  [train A4_k1.5]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A4_k1.5_6l1hk15m.log)
+
+=======================================================
+  [9/19] A4_k3.0: k=3.0 [A4]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A4_k3.0.yaml
+
+  [train A4_k3.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A4_k3.0_mf2cexc7.log)
+
+=======================================================
+  [10/19] A4_k7.0: k=7.0 [A4]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A4_k7.0.yaml
+
+  [train A4_k7.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A4_k7.0_mowuo86m.log)
+
+=======================================================
+  [11/19] A5: DIoU→GIoU [A5]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A5.yaml
+
+  [train A5]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A5_ddulkh3v.log)
+
+=======================================================
+  [12/19] A6_fpn: FPN 融合 [A6]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A6_fpn.yaml
+
+  [train A6_fpn]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A6_fpn_glxs17c5.log)
+
+=======================================================
+  [13/19] A7_r0.0: 采样 r=0.0 [A7]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A7_r0.0.yaml
+
+  [train A7_r0.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A7_r0.0_u6nevhkp.log)
+
+=======================================================
+  [14/19] A7_r0.5: 采样 r=0.5 [A7]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A7_r0.5.yaml
+
+  [train A7_r0.5]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A7_r0.5_jcbbv2eb.log)
+
+=======================================================
+  [15/19] A7_r1.0: 采样 r=1.0 [A7]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A7_r1.0.yaml
+
+  [train A7_r1.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A7_r1.0_9tad6f59.log)
+
+=======================================================
+  [16/19] A7_r2.0: 采样 r=2.0 [A7]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A7_r2.0.yaml
+
+  [train A7_r2.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A7_r2.0_t3dj1wgw.log)
+
+=======================================================
+  [17/19] A8_lw0.5: lw=0.5 [A8]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A8_lw0.5.yaml
+
+  [train A8_lw0.5]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A8_lw0.5_v02csgzi.log)
+
+=======================================================
+  [18/19] A8_lw2.0: lw=2.0 [A8]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A8_lw2.0.yaml
+
+  [train A8_lw2.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A8_lw2.0_r21kdvvc.log)
+
+=======================================================
+  [19/19] A8_lw5.0: lw=5.0 [A8]
+=======================================================
+  Config: e:\Tridet\TriDet-Pro\work_1\abl_A8_lw5.0.yaml
+
+  [train A8_lw5.0]
+  [FAIL(1)] 0min
+      File "e:\Tridet\TriDet-Pro\train.py", line 65, in main
+        train_loader = make_data_loader(
+    TypeError: make_data_loader() got an unexpected keyword argument 'persistent_workers'
+    (full log: e:\Tridet\TriDet-Pro\work_1\run_train_A8_lw5.0_71u1pjbz.log)
+
+============================================================
+  ALL DONE! 27 results → e:\Tridet\TriDet-Pro\work_1\ablation_results.csv
+============================================================
