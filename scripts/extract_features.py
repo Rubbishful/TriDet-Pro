@@ -18,16 +18,16 @@ Usage:
       --frames_dir ./thumos_frames \
       --output_dir ./thumos_i3d_features \
       --mode rgb \
-      --rgb_model pytorch-i3d-feature-extraction-master/models/rgb_imagenet.pt \
+      --rgb_model E2E/model/rgb_imagenet.pt \
       --feat_stride 4
 
   # THUMOS14: Extract RGB+Flow features from raw videos (2048-dim)
   python scripts/extract_features.py \
-      --video_dir D:/Code/THUMOS14/thumos/videos \
-      --output_dir D:/Code/THUMOS14/thumos/i3d_features \
+      --video_dir ./data/thumos/videos \
+      --output_dir ./data/thumos/i3d_features \
       --mode rgb+flow \
-      --rgb_model pytorch-i3d-feature-extraction-master/models/rgb_imagenet.pt \
-      --flow_model pytorch-i3d-feature-extraction-master/models/flow_imagenet.pt \
+      --rgb_model E2E/model/rgb_imagenet.pt \
+      --flow_model E2E/model/flow_imagenet.pt \
       --feat_stride 4 \
       --video_fps 25
 
@@ -99,10 +99,10 @@ Examples:
     # ---- Model ----
     model_group = parser.add_argument_group("Model weights")
     model_group.add_argument("--rgb_model", type=str,
-                             default="pytorch-i3d-feature-extraction-master/models/rgb_imagenet.pt",
+                             default="E2E/model/rgb_imagenet.pt",
                              help="Path to RGB I3D weights")
     model_group.add_argument("--flow_model", type=str,
-                             default="pytorch-i3d-feature-extraction-master/models/flow_imagenet.pt",
+                             default="E2E/model/flow_imagenet.pt",
                              help="Path to Flow I3D weights")
     model_group.add_argument("--mode", type=str, default="rgb",
                              choices=["rgb", "flow", "rgb+flow"],

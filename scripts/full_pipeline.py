@@ -74,10 +74,10 @@ def main():
 
     # Optional arguments
     parser.add_argument("--rgb_model", type=str,
-                        default="pytorch-i3d-feature-extraction-master/models/rgb_imagenet.pt",
+                        default="E2E/model/rgb_imagenet.pt",
                         help="RGB I3D model weights")
     parser.add_argument("--flow_model", type=str,
-                        default="pytorch-i3d-feature-extraction-master/models/flow_imagenet.pt",
+                        default="E2E/model/flow_imagenet.pt",
                         help="Flow I3D model weights")
     parser.add_argument("--device", type=str, default="cuda:0",
                         help="Computation device")
