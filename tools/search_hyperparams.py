@@ -64,9 +64,9 @@ from libs.core import load_config
 from libs.datasets import make_dataset, make_data_loader
 from libs.modeling import make_meta_arch
 from libs.utils import (
-    AverageMeter, ModelEma,
+    ANETdetection, AverageMeter, ModelEma,
     fix_random_seed, make_optimizer, make_scheduler,
-    train_one_epoch,
+    train_one_epoch, valid_one_epoch,
 )
 
 # ---------------------------------------------------------------------------
@@ -336,6 +336,50 @@ def compute_val_loss(model, val_loader):
     return meter.avg
 
 
+def eval_trial_mAP(cfg, ckpt_path, print_freq=10):
+    """Evaluate a saved model checkpoint on the test set and return mAP.
+
+    Builds a fresh model, loads the checkpoint, runs valid_one_epoch with
+    ANETdetection evaluator, then cleans up GPU memory.
+    """
+    device = cfg["devices"][0]
+    device_idx = torch.device(device).index
+
+    val_dataset = make_dataset(
+        cfg["dataset_name"], False, cfg["val_split"], **cfg["dataset"]
+    )
+    val_loader = make_data_loader(
+        val_dataset, False, None, 1, cfg["loader"]["num_workers"]
+    )
+
+    model = make_meta_arch(cfg["model_name"], **cfg["model"])
+    model = nn.DataParallel(model, device_ids=[device_idx])
+
+    checkpoint = torch.load(str(ckpt_path), map_location=device)
+    model.load_state_dict(checkpoint["state_dict_ema"])
+    del checkpoint
+
+    val_db_vars = val_dataset.get_attributes()
+    det_eval = ANETdetection(
+        val_dataset.json_file,
+        val_dataset.split[0],
+        tiou_thresholds=val_db_vars["tiou_thresholds"],
+    )
+
+    mAP = valid_one_epoch(
+        val_loader, model, -1,
+        evaluator=det_eval,
+        ext_score_file=cfg["test_cfg"].get("ext_score_file", None),
+        tb_writer=None,
+        print_freq=print_freq,
+    )
+
+    del model, val_loader, val_dataset, det_eval
+    torch.cuda.empty_cache()
+
+    return mAP
+
+
 def check_early_stop(block_losses, threshold=0.01, patience=3):
     if len(block_losses) < patience + 1:
         return False
@@ -401,12 +445,18 @@ def train_one_trial(cfg, train_indices, val_indices, trial_dir, args, rng):
         if check_early_stop(block_losses, args.threshold, args.patience):
             break
 
-    return {
+    result = {
         "best_val_loss": float(best_val_loss),
         "best_epoch": best_epoch,
         "stopped_epoch": block_end,
         "block_losses": [float(v) for v in block_losses],
     }
+
+    # free training GPU memory before eval
+    del model, model_ema, optimizer, scheduler, train_loader, val_loader
+    torch.cuda.empty_cache()
+
+    return result
 
 
 def main(args):
@@ -466,7 +516,7 @@ def main(args):
     results = []
     summary_path = exp_folder / "summary.csv"
     fieldnames = list(search_space.keys()) + [
-        "trial", "best_val_loss", "best_epoch", "stopped_epoch", "duration_s"
+        "trial", "best_val_loss", "best_epoch", "stopped_epoch", "mAP", "duration_s"
     ]
 
     for i, params in enumerate(trials):
@@ -477,11 +527,15 @@ def main(args):
         if (trial_dir / "result.json").exists():
             with open(trial_dir / "result.json") as f:
                 result = json.load(f)
-            print(f"[{i+1:3d}/{len(trials):3d}] SKIP (already done)  "
-                  f"best_loss={result['best_val_loss']:.4f}")
-            row = {**params, "trial": i, **result}
-            results.append(row)
-            continue
+            if "mAP" in result:
+                print(f"[{i+1:3d}/{len(trials):3d}] SKIP (already done)  "
+                      f"best_loss={result['best_val_loss']:.4f}  mAP={result['mAP']:.2f}")
+                row = {**params, "trial": i, **result}
+                results.append(row)
+                continue
+            else:
+                print(f"[{i+1:3d}/{len(trials):3d}] RESUME (re-eval mAP)  "
+                      f"best_loss={result['best_val_loss']:.4f}")
 
         # build per-trial config
         trial_cfg = deepcopy(base_cfg)
@@ -500,11 +554,17 @@ def main(args):
         trial_rng = fix_random_seed(base_cfg["init_rand_seed"] + i, include_cuda=True)
         t_start = time.time()
         result = train_one_trial(trial_cfg, train_indices, val_indices, trial_dir, args, trial_rng)
-        result["duration_s"] = round(time.time() - t_start, 1)
+        train_time = round(time.time() - t_start, 1)
+
+        # evaluate mAP on test set using the saved best model
+        best_ckpt = trial_dir / "best_model.pth"
+        mAP = eval_trial_mAP(trial_cfg, best_ckpt, print_freq=args.print_freq)
+        result["mAP"] = mAP
+        result["duration_s"] = train_time + round(time.time() - t_start - train_time, 1)
 
         print(f"  => best_val_loss={result['best_val_loss']:.4f}  "
               f"best_epoch={result['best_epoch']}  stopped={result['stopped_epoch']}  "
-              f"time={result['duration_s']:.0f}s")
+              f"mAP={mAP:.2f}  time={result['duration_s']:.0f}s")
 
         with open(trial_dir / "result.json", "w") as f:
             json.dump(result, f, indent=2)
@@ -512,8 +572,8 @@ def main(args):
         row = {**params, "trial": i, **result}
         results.append(row)
 
-        # write incremental summary
-        sorted_results = sorted(results, key=lambda r: r["best_val_loss"])
+        # write incremental summary (sorted by mAP, higher is better)
+        sorted_results = sorted(results, key=lambda r: r.get("mAP", 0), reverse=True)
         with open(summary_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
@@ -522,14 +582,15 @@ def main(args):
         # print current top 3
         print(f"  [Top-3 so far]")
         for rank, r in enumerate(sorted_results[:3]):
-            print(f"    #{rank+1} trial={r['trial']:03d}  val_loss={r['best_val_loss']:.4f}  "
-                  f"epoch={r['best_epoch']}")
+            print(f"    #{rank+1} trial={r['trial']:03d}  mAP={r.get('mAP', 0):.2f}  "
+                  f"val_loss={r['best_val_loss']:.4f}  epoch={r['best_epoch']}")
 
     # final summary
-    sorted_results = sorted(results, key=lambda r: r["best_val_loss"])
+    sorted_results = sorted(results, key=lambda r: r.get("mAP", 0), reverse=True)
     print(f"\n{'='*60}")
     print(f"  Search complete — {len(results)} trials")
     print(f"  Best: trial={sorted_results[0]['trial']:03d}  "
+          f"mAP={sorted_results[0].get('mAP', 0):.2f}  "
           f"val_loss={sorted_results[0]['best_val_loss']:.4f}")
     print(f"  Results: {exp_folder}")
     print(f"{'='*60}")
