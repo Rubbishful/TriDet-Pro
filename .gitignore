@@ -12,8 +12,13 @@ ckpt/
 *.pkl
 *.pt
 
-# Visualize output folder
-vis_output
+# Data
+data/
+*.mp4
+
+# output
+vis_output/
+result/
 
 # IDE & tools
 .clawhub/
@@ -31,3 +36,7 @@ vis_output
 
 # System
 .DS_store
+
+# build
+*.pyd
+libs/utils/build
