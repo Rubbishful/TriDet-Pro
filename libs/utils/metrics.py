@@ -331,8 +331,7 @@ def segment_iou(target_segment, candidate_segments):
     tIoU = segments_intersection.astype(float) / segments_union
 
     if np.any(segments_union == 0) or np.any(np.isnan(segments_union)):
-        print(1)
-    return tIoU
+        return tIoU
 
 
 def interpolated_prec_rec(prec, rec):

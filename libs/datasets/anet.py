@@ -35,7 +35,7 @@ class ActivityNetDataset(Dataset):
         # file path
         assert os.path.exists(feat_folder) and os.path.exists(json_file)
         assert isinstance(split, tuple) or isinstance(split, list)
-        assert crop_ratio == None or len(crop_ratio) == 2
+        assert crop_ratio is None or len(crop_ratio) == 2
         self.feat_folder = feat_folder
         self.use_hdf5 = '.hdf5' in feat_folder
         if file_prefix is not None:
@@ -95,7 +95,7 @@ class ActivityNetDataset(Dataset):
                     label_dict[act['label']] = act['label_id']
 
         # fill in the db (immutable afterwards)
-        dict_db = tuple()
+        dict_db = []
         for key, value in json_db.items():
             # skip the video if not in the split
             if value['subset'].lower() not in self.split:
@@ -126,14 +126,14 @@ class ActivityNetDataset(Dataset):
             else:
                 segments = None
                 labels = None
-            dict_db += ({'id': key,
+            dict_db.append({'id': key,
                          'fps' : fps,
                          'duration' : duration,
                          'segments' : segments,
                          'labels' : labels
             }, )
 
-        return dict_db, label_dict
+        return tuple(dict_db), label_dict
 
     def __len__(self):
         return len(self.data_list)

@@ -20,7 +20,6 @@ from pprint import pprint
 
 import torch
 import torch.nn as nn
-import numpy as np
 
 from libs.core import load_config
 from libs.datasets import make_dataset, make_data_loader
@@ -88,10 +87,11 @@ def main():
                         help="训练用样本数 (default: 2)")
     parser.add_argument("--val-samples", type=int, default=1,
                         help="验证用样本数 (default: 1)")
-    parser.add_argument("--amp", action="store_true", default=True, dest="use_amp",
+    parser.add_argument("--amp", action="store_true", dest="use_amp",
                         help="开启 AMP 混合精度 (默认启用)")
     parser.add_argument("--no-amp", action="store_false", dest="use_amp",
                         help="关闭 AMP")
+    parser.set_defaults(use_amp=True)
     args = parser.parse_args()
 
     print("=" * 60)
@@ -113,13 +113,6 @@ def main():
         print(f"\n  [WARN] max_seq_len 必须被 {seq_divisor} 整除")
         print(f"         {raw_len} → {aligned_len} (自动对齐)")
     cfg["dataset"]["max_seq_len"] = aligned_len
-
-    # 同步 dataset → model 字段
-    cfg["model"]["input_dim"] = cfg["dataset"]["input_dim"]
-    cfg["model"]["num_classes"] = cfg["dataset"]["num_classes"]
-    cfg["model"]["max_seq_len"] = cfg["dataset"]["max_seq_len"]
-    cfg["model"]["train_cfg"] = cfg["train_cfg"]
-    cfg["model"]["test_cfg"] = cfg["test_cfg"]
 
     print_config_diff(cfg)
     if args.use_amp:

@@ -1,4 +1,3 @@
-import os
 import torch
 from .data_utils import trivial_batch_collator, worker_init_reset_seed
 

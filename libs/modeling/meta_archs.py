@@ -210,7 +210,7 @@ class TriDet(nn.Module):
             regression_range,  # regression range on each level of FPN
             head_num_layers,  # number of layers in the head (including the classifier)
             head_kernel_size,  # kernel size for reg/cls heads
-            boudary_kernel_size,  # kernel size for boundary heads
+            boundary_kernel_size,  # kernel size for boundary heads
             head_with_ln,  # attache layernorm to reg/cls heads
             use_abs_pe,  # if to use abs position encoding
             num_bins,  # the bin number in Trident-head (exclude 0)
@@ -351,7 +351,7 @@ class TriDet(nn.Module):
         if use_trident_head:
             self.start_head = ClsHead(
                 fpn_dim, head_dim, self.num_classes,
-                kernel_size=boudary_kernel_size,
+                kernel_size=boundary_kernel_size,
                 prior_prob=self.train_cls_prior_prob,
                 with_ln=head_with_ln,
                 num_layers=head_num_layers,
@@ -360,7 +360,7 @@ class TriDet(nn.Module):
             )
             self.end_head = ClsHead(
                 fpn_dim, head_dim, self.num_classes,
-                kernel_size=boudary_kernel_size,
+                kernel_size=boundary_kernel_size,
                 prior_prob=self.train_cls_prior_prob,
                 with_ln=head_with_ln,
                 num_layers=head_num_layers,

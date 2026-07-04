@@ -38,10 +38,11 @@ class HacsDataset(Dataset):
             feat_folder = os.path.join(feat_folder, split[0])
         assert os.path.exists(feat_folder) and os.path.exists(json_file)
         assert isinstance(split, tuple) or isinstance(split, list)
-        assert crop_ratio == None or len(crop_ratio) == 2
+        assert crop_ratio is None or len(crop_ratio) == 2
         self.feat_folder = feat_folder
         self.backbone_type = backbone_type
         self.file_ext = file_ext
+        self.file_prefix = ""
         self.json_file = json_file
 
         # anet uses fixed length features, make sure there is no downsampling
@@ -74,7 +75,6 @@ class HacsDataset(Dataset):
         self.db_attributes = {
             'dataset_name': 'HACS',
             'tiou_thresholds': np.linspace(0.5, 0.95, 10),
-            # 'tiou_thresholds': np.array([0.5, 0.75, 0.95]),
             'empty_label_ids': []
         }
 
@@ -95,7 +95,7 @@ class HacsDataset(Dataset):
                     label_dict[act['label']] = act['label_id']
 
         # fill in the db (immutable afterwards)
-        dict_db = tuple()
+        dict_db = []
         for key, value in json_db.items():
             # skip the video if not in the split
             if value['subset'].lower() not in self.split:
@@ -126,14 +126,14 @@ class HacsDataset(Dataset):
             else:
                 segments = None
                 labels = None
-            dict_db += ({'id': key,
+            dict_db.append({'id': key,
                          'fps': fps,
                          'duration': duration,
                          'segments': segments,
                          'labels': labels
-                         },)
+                                                  )
 
-        return dict_db, label_dict
+        return tuple(dict_db), label_dict
 
     def __len__(self):
         return len(self.data_list)
@@ -147,16 +147,19 @@ class HacsDataset(Dataset):
         # load features
         if self.backbone_type == 'i3d':
             filename = os.path.join(self.feat_folder, self.file_prefix + video_item['id'] + self.file_ext)
-            feats = np.load(filename, allow_pickle=True).astype(np.float32)
+            with np.load(filename, allow_pickle=True) as data:
+                feats = data.astype(np.float32)
         else:
             if self.backbone_type == 'slowfast':
                 filename = os.path.join(self.feat_folder, video_item['id'] + self.file_ext)
-                feats = np.load(filename, allow_pickle=True)
+                with np.load(filename, allow_pickle=True) as data:
+                    feats = data
                 # 1 x 2304 x T --> T x 2304
                 feats = torch.concat([feats['slow_feature'], feats['fast_feature']], dim=1).squeeze(0).transpose(0, 1)
             elif self.backbone_type == 'tsp':
                 filename = os.path.join(self.feat_folder, 'v_' + video_item['id'] + self.file_ext)
-                feats = np.load(filename, allow_pickle=True)
+                with np.load(filename, allow_pickle=True) as data:
+                    feats = data
 
         # we support both fixed length features / variable length features
         if self.feat_stride > 0 and (not self.force_upsampling):
