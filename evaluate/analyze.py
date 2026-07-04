@@ -14,8 +14,8 @@ matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'DejaVu Sans']
 matplotlib.rcParams['axes.unicode_minus'] = False
 
-REPO = 'e:/Tridet/TriDet-Pro'
-WORK_DIR = os.path.join(REPO, 'work_1')
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WORK_DIR = os.path.join(REPO, 'evaluate')
 CSV_PATH = os.path.join(WORK_DIR, 'ablation_results.csv')
 REPORT_PATH = os.path.join(WORK_DIR, 'ablation_report.md')
 

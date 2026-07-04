@@ -2,8 +2,8 @@ dataset_name: thumos
 train_split: [validation]
 val_split: [test]
 dataset:
-  json_file: E:/thumos/annotations/thumos14.json
-  feat_folder: E:/thumos/i3d_features
+  json_file: ./data/thumos/annotations/thumos14.json
+  feat_folder: ./data/thumos/i3d_features
   file_prefix: null
   file_ext: .npy
   num_classes: 20
@@ -37,7 +37,7 @@ model:
   fpn_with_ln: true
   head_dim: 512
   head_kernel_size: 3
-  boudary_kernel_size: 3
+  boundary_kernel_size: 3
   head_num_layers: 3
   head_with_ln: true
   use_abs_pe: false

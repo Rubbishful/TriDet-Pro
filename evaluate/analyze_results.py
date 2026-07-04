@@ -1,7 +1,7 @@
 """
 完整分析脚本：时长分层 + 密度分层 + 混淆矩阵 + 消融对比 + 生成报告
 
-用法: python work/analyze_results.py
+用法: python evaluate/analyze_results.py
 """
 
 import os, sys, json, pickle
@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from libs.utils.metrics import segment_iou
 
 # ---- 配置 ----
-REPO = 'e:/Tridet/TriDet-Pro'
-JSON_FILE = 'E:/thumos/annotations/thumos14.json'
-RESULT_DIR = os.path.join(REPO, 'work', 'results')
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JSON_FILE = None  # set via CLI or env
+RESULT_DIR = os.path.join(REPO, 'evaluate', 'results')
 os.makedirs(RESULT_DIR, exist_ok=True)
 
 # ---- 加载数据 ----
@@ -399,11 +399,11 @@ Top 误分类对主要集中在视觉/运动模式相似的类别之间：
 
 | 图表 | 路径 |
 |------|------|
-| 时长分层 | work/results/duration_analysis.png |
-| 密度分布 | work/results/density_hist.png |
-| 混淆矩阵 | work/results/confusion_matrix.png |
-| 消融对比 | work/results/ablation_comparison.png |
-| mAP vs tIoU | work/results/map_vs_tiou.png |
+| 时长分层 | evaluate/results/duration_analysis.png |
+| 密度分布 | evaluate/results/density_hist.png |
+| 混淆矩阵 | evaluate/results/confusion_matrix.png |
+| 消融对比 | evaluate/results/ablation_comparison.png |
+| mAP vs tIoU | evaluate/results/map_vs_tiou.png |
 
 ## 七、模块接口文档
 
@@ -412,7 +412,7 @@ Top 误分类对主要集中在视觉/运动模式相似的类别之间：
 
 ## 八、设计决策分析
 
-详见 [work/design_analysis.md](design_analysis.md)，涵盖 5 个核心 WHY 问题：
+详见 [evaluate/design_analysis.md](design_analysis.md)，涵盖 5 个核心 WHY 问题：
 1. center_sample='radius' 的选择依据
 2. num_bins=16 的精度-效率权衡
 3. SGPBlock 5 分支的设计哲学
@@ -420,7 +420,7 @@ Top 误分类对主要集中在视觉/运动模式相似的类别之间：
 5. DIoU vs GIoU 的 1D 场景分析
 
 ---
-*报告由 work/analyze_results.py 自动生成*
+*报告由 evaluate/analyze_results.py 自动生成*
 """
 
 report_path = os.path.join(RESULT_DIR, 'analysis_report.md')

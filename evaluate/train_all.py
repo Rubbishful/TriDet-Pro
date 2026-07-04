@@ -9,9 +9,9 @@
 import os, sys, subprocess, csv, time, argparse
 from datetime import datetime
 
-REPO = 'e:/Tridet/TriDet-Pro'
-PYTHON = 'E:/anaconda/envs/test/python.exe'
-WORK_DIR = os.path.join(REPO, 'work_1')
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PYTHON = sys.executable
+WORK_DIR = os.path.join(REPO, 'evaluate')
 
 # =====================================================
 # 实验队列 (按优先级排序, 跳过与基线相同的实验)
@@ -265,7 +265,7 @@ def main():
     print("  [2] A1: Trident-head → 普通回归头")
     print("="*70)
     a1_result = evaluate_existing(
-        'A1', os.path.join(REPO, 'work/abl_A1.yaml'),
+        'A1', os.path.join(REPO, 'evaluate/abl_A1.yaml'),
         os.path.join(CKPT_DIR, 'abl_A1_A1'),
         'Trident-head→普通回归头 (use_trident_head=False)', 'A1'
     )

@@ -2,7 +2,7 @@
 按视频动作密度分层分析：按每个视频的 GT 实例数分桶，分别计算 mAP。
 
 用法:
-    python work/density_analysis.py --pred results.pkl --json E:/thumos/annotations/thumos14.json
+    python evaluate/density_analysis.py --pred results.pkl --json data/thumos/annotations/thumos14.json
 """
 
 import os, sys, argparse, json, pickle
@@ -92,7 +92,7 @@ def compute_ap(gt_instances, pred_instances, tiou_thresh):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pred', required=True, help='评估 pickle 文件路径')
-    parser.add_argument('--json', default='E:/thumos/annotations/thumos14.json')
+    parser.add_argument('--json', default=None, help='GT annotation JSON path (required)')
     parser.add_argument('--split', default='test')
     parser.add_argument('--tiou', type=float, default=0.5)
     parser.add_argument('--out', default=None)

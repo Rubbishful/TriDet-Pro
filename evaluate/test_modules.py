@@ -2,8 +2,8 @@
 TriDet 模块单元测试：逐层验证 shape 正确性 + 损失函数数值测试。
 
 用法:
-    cd e:/Tridet/TriDet-Pro
-    python work/test_modules.py
+    cd <project_root>
+    python evaluate/test_modules.py
 """
 
 import sys

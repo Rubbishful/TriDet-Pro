@@ -15,9 +15,9 @@ TriDet 消融实验 — 完整自动化 (A1-A8)。
 import os, sys, subprocess, csv, yaml, re, time, argparse
 from datetime import datetime
 
-REPO = 'e:/Tridet/TriDet-Pro'
-PYTHON = 'E:/anaconda/envs/test/python.exe'
-WORK_DIR = os.path.join(REPO, 'work_1')
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PYTHON = sys.executable
+WORK_DIR = os.path.join(REPO, 'evaluate')
 CKPT_DIR = os.path.join(REPO, 'ckpt')
 CSV_PATH = os.path.join(WORK_DIR, 'ablation_results.csv')
 BASE_CONFIG = os.path.join(REPO, 'configs/thumos_i3d.yaml')
@@ -27,8 +27,8 @@ BASE_CONFIG = os.path.join(REPO, 'configs/thumos_i3d.yaml')
 # =====================================================
 EXISTING_CKPTS = {
     'baseline': ('configs/thumos_i3d.yaml', 'ckpt/thumos_i3d_baseline', 'Baseline (SGP+Trident+DIoU)', 'baseline', 40),
-    'A1':       ('work/abl_A1.yaml',        'ckpt/abl_A1_A1',             'Trident-head→普通回归头',       'A1', 40),
-    'A2':       ('work/abl_A2.yaml',        'ckpt/abl_A2_A2',             'SGP→Conv (20ep 下界估计)',        'A2', 20),
+    'A1':       ('evaluate/abl_A1.yaml',        'ckpt/abl_A1_A1',             'Trident-head→普通回归头',       'A1', 40),
+    'A2':       ('evaluate/abl_A2.yaml',        'ckpt/abl_A2_A2',             'SGP→Conv (20ep 下界估计)',        'A2', 20),
 }
 
 # 基线等效实验 (复用 baseline 结果)

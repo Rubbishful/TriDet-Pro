@@ -2,7 +2,7 @@
 按动作时长分层分析：将 GT 实例按时长分组，分别计算 recall。
 
 用法:
-    python work/duration_analysis.py --pred results.pkl --json E:/thumos/annotations/thumos14.json
+    python evaluate/duration_analysis.py --pred results.pkl --json data/thumos/annotations/thumos14.json
 """
 
 import os, sys, argparse, json, pickle
@@ -62,8 +62,8 @@ def compute_recall(gt_instances, pred_instances, tiou_thresh=0.5):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pred', required=True, help='评估 pickle 文件路径')
-    parser.add_argument('--json', default='E:/thumos/annotations/thumos14.json',
-                        help='标注 JSON 路径')
+    parser.add_argument('--json', default=None,
+                        help='GT annotation JSON path (required)')
     parser.add_argument('--split', default='test', help='数据集 split')
     parser.add_argument('--tiou', type=float, default=0.5, help='tIoU 阈值')
     parser.add_argument('--out', default=None, help='输出图表路径')

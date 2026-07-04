@@ -17,10 +17,10 @@
 import os, sys, subprocess, csv, argparse, time, re
 from datetime import datetime
 
-REPO = 'e:/Tridet/TriDet-Pro'
-PYTHON = 'E:/anaconda/envs/test/python.exe'
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PYTHON = sys.executable
 BASE_CONFIG = os.path.join(REPO, 'configs/thumos_i3d.yaml')
-WORK_DIR = os.path.join(REPO, 'work_1')
+WORK_DIR = os.path.join(REPO, 'evaluate')
 CKPT_DIR = os.path.join(REPO, 'ckpt')
 CSV_FILE = os.path.join(WORK_DIR, 'ablation_results.csv')
 

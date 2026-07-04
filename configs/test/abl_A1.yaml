@@ -4,8 +4,8 @@ train_split:
 val_split:
 - test
 dataset:
-  json_file: E:/thumos/annotations/thumos14.json
-  feat_folder: E:/thumos/i3d_features
+  json_file: ./data/thumos/annotations/thumos14.json
+  feat_folder: ./data/thumos/i3d_features
   file_prefix: null
   file_ext: .npy
   num_classes: 20
@@ -63,5 +63,5 @@ test_cfg:
   max_seg_num: 2000
   min_score: 0.001
   multiclass_nms: false
-  ext_score_file: E:/thumos/annotations/thumos14_cls_scores.pkl
+  ext_score_file: ./data/thumos/annotations/thumos14_cls_scores.pkl
 output_folder: ./ckpt/

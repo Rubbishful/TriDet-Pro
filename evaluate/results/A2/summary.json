@@ -1,5 +1,5 @@
 {
-  "config": "work/abl_A2.yaml",
+  "config": "evaluate/abl_A2.yaml",
   "checkpoint": "ckpt/abl_A2_A2\\epoch_020.pth.tar",
   "mAP_per_tiou": {
     "0.30": 61.72560763554505,

@@ -2,7 +2,7 @@
 快速评估脚本：加载模型 → 推理 → 保存结果 → 离线计算 mAP
 
 用法:
-    python work/eval_fast.py --config work/abl_A1.yaml --ckpt ckpt/abl_A1_A1 --output work/results/
+    python evaluate/eval_fast.py --config evaluate/abl_A1.yaml --ckpt ckpt/abl_A1_A1 --output evaluate/results/
 """
 
 import os, sys, argparse, pickle, json, time
@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import pandas as pd
 
-REPO = 'e:/Tridet/TriDet-Pro'
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
 from libs.core import load_config
@@ -20,16 +20,16 @@ from libs.modeling import make_meta_arch
 from libs.utils import fix_random_seed
 from libs.utils.metrics import ANETdetection
 
-PYTHON = 'E:/anaconda/envs/test/python.exe'
-JSON_FILE = 'E:/thumos/annotations/thumos14.json'
-SCORE_FILE = 'E:/thumos/annotations/thumos14_cls_scores.pkl'
+PYTHON = sys.executable
+JSON_FILE = None  # set via CLI or env
+SCORE_FILE = None
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', required=True)
     parser.add_argument('--ckpt', required=True)
-    parser.add_argument('--output', default='work/results/')
+    parser.add_argument('--output', default='evaluate/results/')
     parser.add_argument('--split', default='test')
     parser.add_argument('--max-videos', type=int, default=0, help='限制视频数(调试用), 0=全部')
     args = parser.parse_args()

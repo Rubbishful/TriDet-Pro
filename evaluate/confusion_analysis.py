@@ -2,7 +2,7 @@
 混淆矩阵分析：统计 THUMOS14 的类别间误分类模式。
 
 用法:
-    python work/confusion_analysis.py --pred results.pkl --json E:/thumos/annotations/thumos14.json
+    python evaluate/confusion_analysis.py --pred results.pkl --json data/thumos/annotations/thumos14.json
 """
 
 import os, sys, argparse, json, pickle
@@ -40,7 +40,7 @@ def load_preds(pkl_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pred', required=True, help='评估 pickle 文件路径')
-    parser.add_argument('--json', default='E:/thumos/annotations/thumos14.json')
+    parser.add_argument('--json', default=None, help='GT annotation JSON path (required)')
     parser.add_argument('--split', default='test')
     parser.add_argument('--tiou', type=float, default=0.5)
     parser.add_argument('--out', default=None)

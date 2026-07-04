@@ -2,7 +2,7 @@
 完整测试与分析流程：评估 → 消融对比 → 分层分析 → 混淆矩阵
 
 用法:
-    python work/run_full_analysis.py
+    python evaluate/run_full_analysis.py
 """
 
 import os, sys, csv, json, pickle, time
@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-REPO = 'e:/Tridet/TriDet-Pro'
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 
 from libs.core import load_config
@@ -20,20 +20,20 @@ from libs.datasets import make_dataset, make_data_loader
 from libs.modeling import make_meta_arch
 from libs.utils import fix_random_seed, ANETdetection, valid_one_epoch
 
-PYTHON = 'E:/anaconda/envs/test/python.exe'
-EXPORT_DIR = os.path.join(REPO, 'work', 'results')
+PYTHON = sys.executable
+EXPORT_DIR = os.path.join(REPO, 'evaluate', 'results')
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
 # ---- 数据集参数 ----
-JSON_FILE = 'E:/thumos/annotations/thumos14.json'
-SCORE_FILE = 'E:/thumos/annotations/thumos14_cls_scores.pkl'
+JSON_FILE = None  # set via CLI or env
+SCORE_FILE = None
 
 # ---- 实验配置 ----
 EXPERIMENTS = [
     # (实验ID, 配置名, checkpoint文件夹, 描述)
     ('baseline', 'configs/thumos_i3d.yaml', 'ckpt/thumos_i3d_baseline', 'TriDet 基线 (SGP + Trident-head)'),
-    ('A1', 'work/abl_A1.yaml', 'ckpt/abl_A1_A1', 'A1: Trident-head → 普通回归头'),
-    ('A2', 'work/abl_A2.yaml', 'ckpt/abl_A2_A2', 'A2: SGP → Conv Backbone'),
+    ('A1', 'evaluate/abl_A1.yaml', 'ckpt/abl_A1_A1', 'A1: Trident-head → 普通回归头'),
+    ('A2', 'evaluate/abl_A2.yaml', 'ckpt/abl_A2_A2', 'A2: SGP → Conv Backbone'),
 ]
 
 
@@ -191,7 +191,7 @@ def run_module_analysis():
     print(f"{'='*60}")
 
     import subprocess
-    r = subprocess.run([PYTHON, 'work/test_modules.py'], cwd=REPO,
+    r = subprocess.run([PYTHON, 'evaluate/test_modules.py'], cwd=REPO,
                        capture_output=True, text=True, timeout=120)
     last_lines = r.stdout.strip().split('\n')[-5:]
     for line in last_lines:

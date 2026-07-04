@@ -15,9 +15,9 @@ from datetime import datetime
 from pathlib import Path
 
 # ---- 路径配置 ----
-REPO = Path('e:/Tridet/TriDet-Pro')
-PYTHON = 'E:/anaconda/envs/test/python.exe'
-WORK = REPO / 'work_1'
+REPO = Path(__file__).resolve().parent.parent
+PYTHON = sys.executable
+WORK = REPO / 'evaluate'
 CKPT = REPO / 'ckpt'
 CSV_FILE = WORK / 'ablation_results.csv'
 BASE_CFG = REPO / 'configs/thumos_i3d.yaml'
@@ -27,9 +27,9 @@ EXISTING = [
     ('baseline', 'Baseline (SGP+Trident+DIoU)', 'baseline',
      str(REPO / 'configs/thumos_i3d.yaml'), str(CKPT / 'thumos_i3d_baseline'), 40),
     ('A1', 'Trident-head→普通回归头', 'A1',
-     str(REPO / 'work/abl_A1.yaml'), str(CKPT / 'abl_A1_A1'), 40),
+     str(REPO / 'evaluate/abl_A1.yaml'), str(CKPT / 'abl_A1_A1'), 40),
     ('A2', 'SGP→Conv (20ep)', 'A2',
-     str(REPO / 'work/abl_A2.yaml'), str(CKPT / 'abl_A2_A2'), 20),
+     str(REPO / 'evaluate/abl_A2.yaml'), str(CKPT / 'abl_A2_A2'), 20),
 ]
 
 # ---- 基线等效 (直接复用 baseline) ----
@@ -49,7 +49,7 @@ TO_TRAIN = [
     ('A3_w7',  '窗口 w=7',          'A3', {'model.n_sgp_win_size': 7}),
     ('A3_w9',  '窗口 w=9',          'A3', {'model.n_sgp_win_size': 9}),
     ('A3_w11', '窗口 w=11',         'A3', {'model.n_sgp_win_size': 11}),
-    ('A3_pl',  '窗口 [1,3,5,7,9,11]', 'A3', {'model.n_sgp_win_size': [1,3,5,7,9,11]}),
+    ('A3_per_layer',  '窗口 [1,3,5,7,9,11]', 'A3', {'model.n_sgp_win_size': [1,3,5,7,9,11]}),
     # A4: k 参数
     ('A4_k1.0', 'k=1.0', 'A4', {'model.k': 1.0}),
     ('A4_k1.5', 'k=1.5', 'A4', {'model.k': 1.5}),

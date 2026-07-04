@@ -33,9 +33,10 @@ import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 
 # ── 路径常量 ───────────────────────────────────────────────
-ANNOTATION_FILE = r"D:\Code\ActivityNet\anet_1.3\annotations\anet1.3_tsp_filtered.json"
-VIDEO_DIR = r"D:\Code\ActivityNet\anet_video\activitynet-100\validation\data"
-FEATURE_DIR = r"D:\Code\ActivityNet\anet_1.3\tsp_features"
+# These are overridable via CLI arguments; see main().
+ANNOTATION_FILE = None
+VIDEO_DIR = None
+FEATURE_DIR = None
 
 # 可视化配色
 GT_COLOR = "#2ecc71"  # 绿色 — Ground Truth
@@ -317,7 +318,19 @@ def main():
                         help="输出目录")
     parser.add_argument("--list-overlap", action="store_true",
                         help="仅列出可用的重叠视频数量并退出")
+    parser.add_argument("--annotation-file", type=str, default="./data/anet/annotations/anet1.3_tsp_filtered.json",
+                        help="标注 JSON 文件路径")
+    parser.add_argument("--video-dir", type=str, default="./data/anet/videos",
+                        help="原始视频目录")
+    parser.add_argument("--feature-dir", type=str, default="./data/anet/tsp_features",
+                        help="预提取特征目录")
     args = parser.parse_args()
+
+    # 更新全局路径常量
+    global ANNOTATION_FILE, VIDEO_DIR, FEATURE_DIR
+    ANNOTATION_FILE = args.annotation_file
+    VIDEO_DIR = args.video_dir
+    FEATURE_DIR = args.feature_dir
 
     # ── 构建重叠集 ──
     print("构建视频-特征-标注重叠集 ...")

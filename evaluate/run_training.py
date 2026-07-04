@@ -10,15 +10,13 @@ import os, sys, subprocess, csv, yaml, re, time
 from datetime import datetime
 from pathlib import Path
 
-REPO = Path('e:/Tridet/TriDet-Pro')
-PYTHON = str(REPO.parent.parent / 'anaconda/envs/test/python.exe')
-# Hardcode for reliability
-PYTHON = 'E:/anaconda/envs/test/python.exe'
-WORK = REPO / 'work_1'
+REPO = Path(__file__).resolve().parent.parent
+PYTHON = sys.executable
+WORK = REPO / 'evaluate'
 CKPT = REPO / 'ckpt'
 CSV_FILE = WORK / 'ablation_results.csv'
 
-# ===== 已知结果 (来自 work/results/analysis_report.md) =====
+# ===== 已知结果 (来自 evaluate/results/analysis_report.md) =====
 KNOWN = {
     'baseline': {
         'exp_id': 'baseline', 'group': 'baseline',
@@ -56,7 +54,7 @@ TO_TRAIN = [
     ('A3_w7',  'SGP窗口 w=7',           'A3', {'model.n_sgp_win_size': 7}),
     ('A3_w9',  'SGP窗口 w=9',           'A3', {'model.n_sgp_win_size': 9}),
     ('A3_w11', 'SGP窗口 w=11',          'A3', {'model.n_sgp_win_size': 11}),
-    ('A3_pl',  'SGP窗口 [1,3,5,7,9,11]','A3', {'model.n_sgp_win_size': [1,3,5,7,9,11]}),
+    ('A3_per_layer',  'SGP窗口 [1,3,5,7,9,11]','A3', {'model.n_sgp_win_size': [1,3,5,7,9,11]}),
     ('A4_k1.0','k=1.0',  'A4', {'model.k': 1.0}),
     ('A4_k1.5','k=1.5',  'A4', {'model.k': 1.5}),
     ('A4_k3.0','k=3.0',  'A4', {'model.k': 3.0}),

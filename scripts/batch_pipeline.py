@@ -576,8 +576,8 @@ Examples:
 
   # With custom model weights
   python scripts/batch_pipeline.py \\
-      --video_dir D:/videos \\
-      --output_dir D:/results \\
+      --video_dir ./videos \\
+      --output_dir ./results \\
       --checkpoint ./epoch_039.pth.tar \\
       --rgb_model E2E/model/rgb_imagenet.pt \\
       --flow_model E2E/model/flow_imagenet.pt

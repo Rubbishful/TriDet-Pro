@@ -74,11 +74,11 @@ cd ../..
 
 路径：
 ```
-E:/THUMOS14/thumos/
+./data/thumos/
   ├── annotations/thumos14.json + thumos14_cls_scores.pkl
   └── i3d_features/ (413 .npy)
 
-E:/Code/ActivityNet/anet_1.3/
+./data/anet/
   ├── annotations/anet1.3_tsp_filtered.json + cuhk_val_simp_share.json
   └── tsp_features/
 ```
@@ -117,13 +117,13 @@ python eval.py ./configs/thumos_i3d.yaml ./ckpt/thumos_i3d_thumos_baseline/ --sa
 
 # 密度分层 + 重叠分桶 + 失效案例图
 python analysis/error_analysis.py \
-    --gt_json E:/THUMOS14/thumos/annotations/thumos14.json \
+    --gt_json ./data/thumos/annotations/thumos14.json \
     --pred_pkl ./ckpt/thumos_i3d_thumos_baseline/eval_results.pkl \
     --split test --plot_timelines
 
 # 重叠场景独立 mAP
 python analysis/eval_overlap_subset.py \
-    --gt_json E:/THUMOS14/thumos/annotations/thumos14.json \
+    --gt_json ./data/thumos/annotations/thumos14.json \
     --pred_pkl ./ckpt/thumos_i3d_thumos_baseline/eval_results.pkl \
     --split test
 ```
