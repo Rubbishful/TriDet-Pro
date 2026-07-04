@@ -7,12 +7,15 @@
 ## 项目结构
 
 ```
-Tridet/
+TriDet-Pro/
 ├── train.py / eval.py          # 训练 / 评估入口
 ├── download_activitynet.py     # ActivityNet 原始视频下载（FiftyOne）
 ├── configs/                    # 各数据集配置文件
 │   ├── thumos_i3d.yaml         # THUMOS14（I3D, 20 类）
-│   └── anet_tsp.yaml           # ActivityNet（TSP, 200 类）
+│   ├── anet_tsp.yaml           # ActivityNet（TSP, 200 类）
+│   ├── id3_i3d.yaml            # 自定义数据（I3D, 20 类, 端到端）
+│   ├── hacs_*.yaml             # HACS（I3D / SlowFast, 200 类）
+│   └── epic_slowfast_*.yaml    # EPIC-Kitchens（SlowFast, Noun/Verb）
 ├── libs/
 │   ├── modeling/               # TriDet 模型实现
 │   │   ├── backbones.py        # SGP / Conv Backbone
@@ -26,14 +29,28 @@ Tridet/
 │   ├── datasets/               # 数据集加载
 │   ├── subject/                # 主体检测与跟踪 (YOLO + SORT)
 │   └── utils/                  # NMS、评估指标、训练工具
+├── E2E/                        # 端到端特征提取与推理模块
+│   ├── __init__.py             # 公共 API 导出
+│   ├── i3d.py                  # InceptionI3D 模型定义
+│   ├── loader.py               # 帧加载工具 (视频/目录/单帧)
+│   ├── flow.py                 # Farneback 光流计算
+│   ├── features.py             # I3D 特征提取核心
+│   ├── inference.py            # TriDet 推理 + 结果保存
+│   └── model/                  # I3D 预训练权重存放目录
+├── data/                       # 数据集 (标注 + 特征文件)
+│   ├── id3_2048/               # 自定义数据集
+│   ├── thumos/                 # THUMOS14
+│   ├── anet/                   # ActivityNet
+│   ├── hacs/                   # HACS
+│   └── epic_kitchens/          # EPIC-Kitchens
 ├── tools/                      # 一键训练+评估脚本
-├── scripts/                    # 工具脚本 (特征提取等)
+├── scripts/                    # CLI 入口脚本 (调用 E2E/lib 模块)
+│   ├── extract_features.py     # I3D 特征提取
+│   └── full_pipeline.py        # 端到端检测流水线
 ├── doc/                        # 项目文档
-│   └── 分工与开发规划.md         # 当前分工与开发规划
 ├── log/                        # 训练/评估日志
 ├── ckpt/                       # 模型权重（不纳入 Git）
-├── analysis/                   # 错误分析与消融实验
-└── experiments.md              # 实验记录与结果汇总
+└── analysis/                   # 错误分析与消融实验
 ```
 
 ## 当前进度
@@ -58,7 +75,7 @@ Tridet/
 |------|------|
 | 测试与消融分析 | 接口文档化、消融实验、错误分析 |
 | 主体检测与跟踪 | YOLO 人物检测 + 多目标跟踪关联 |
-| 端到端特征提取 | 可训练视频骨干替代预提取特征 |
+| 端到端特征提取 | `E2E/` 模块 — 视频→光流→I3D→TriDet 推理流水线 |
 | 重叠动作与多主体 | 密集场景检测改进、Density-Aware NMS |
 
 另设审核与合并负责人，负责代码审查、整体模型改进（通道注意力 / BiFPN / 损失函数增强等）与最终集成。
@@ -93,7 +110,7 @@ conda activate PatternRecognition
 pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu118
 
 # 安装项目依赖
-cd d:/Code/Tridet
+cd <项目根目录>
 pip install -r requirements.txt
 
 # 安装 FiftyOne（用于 ActivityNet 视频下载）
@@ -120,8 +137,10 @@ https://visualstudio.microsoft.com/zh-hans/vs/older-downloads/
 
 ### 4. 数据集准备
 
-- **特征文件** (`.npy`): 从 [ActionFormer 仓库](https://github.com/happyharrycn/actionformer_release) 下载，放到 `./data/` 目录
-- **原始视频**: 运行 `python download_activitynet.py --test` 下载到 `D:\Code\ActivityNet\anet_video`
+- **特征文件** (`.npy` / `.npz` / `.pkl`): 从 [ActionFormer 仓库](https://github.com/happyharrycn/actionformer_release) 下载，放到 `./data/<dataset>/` 对应子目录
+- **标注文件** (`.json`): 放到 `./data/<dataset>/annotations/` 下
+- **I3D 预训练权重**: 下载 Kinetics-400 预训练权重 (`rgb_imagenet.pt`, `flow_imagenet.pt`) 放到 `E2E/model/`
+- **原始视频**: 运行 `python download_activitynet.py --test` 下载
 
 ## Git 协作规范
 
@@ -282,9 +301,30 @@ python visualize.py --pkl ./ckpt/anet_tsp_baseline/eval_results.pkl --video-id s
 
 三者映射关系: 标注 key (youtube_id) → 特征 `v_{id}.npy` → 视频 `v_{id}.mp4`
 
+### 端到端检测（视频 → 检测结果）
+
+`full_pipeline.py` 实现从原始视频到检测结果的全流程:
+
+```bash
+# 完整的端到端流水线
+python scripts/full_pipeline.py \
+    --video ./data/your_video.mp4 \
+    --config configs/id3_i3d.yaml \
+    --ckpt epoch_039.pth.tar \
+    --output_dir ./result
+
+# 单独提取 I3D 特征 (不运行 TriDet)
+python scripts/extract_features.py \
+    --video_path ./data/your_video.mp4 \
+    --output_dir ./data/id3_2048 \
+    --mode rgb+flow
+```
+
+流水线五阶段: 帧提取 → 光流 → I3D 特征 (2048-dim) → TriDet 推理 + C NMS → 结果 TXT
+
 ## 参考
 
 - TriDet 论文: [arXiv 2303.07347](https://arxiv.org/abs/2303.07347)
 - 原始代码: [dingfengshi/TriDet](https://github.com/dingfengshi/TriDet)
 - ActionFormer: [happyharrycn/actionformer_release](https://github.com/happyharrycn/actionformer_release)
-- [分工与开发规划](分工与开发规划.md) — 当前开发规划与分工详情
+- [分工与开发规划](doc/分工与开发规划.md) — 当前开发规划与分工详情
