@@ -10,6 +10,7 @@ __pycache__/
 ckpt/
 *.pth.tar
 *.pkl
+*.pt
 
 # Visualize output folder
 vis_output
@@ -19,9 +20,14 @@ vis_output
 .vscode/
 .idea/
 .claude/
+.reasonix/
 
 # Project docs (optional: keep if you want to share with teammates)
 # doc/
 
 # Environment
 .conda/
+.venv
+
+# System
+.DS_store
