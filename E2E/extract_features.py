@@ -14,7 +14,7 @@ Output:
 
 Usage:
   # THUMOS14: Extract RGB features from pre-extracted frames (1024-dim)
-  python scripts/extract_features.py \
+  python E2E/extract_features.py \
       --frames_dir ./thumos_frames \
       --output_dir ./thumos_i3d_features \
       --mode rgb \
@@ -22,7 +22,7 @@ Usage:
       --feat_stride 4
 
   # THUMOS14: Extract RGB+Flow features from raw videos (2048-dim)
-  python scripts/extract_features.py \
+  python E2E/extract_features.py \
       --video_dir ./data/thumos/videos \
       --output_dir ./data/thumos/i3d_features \
       --mode rgb+flow \
@@ -32,7 +32,7 @@ Usage:
       --video_fps 25
 
   # Single video: Specify video path, automatic video_id from filename
-  python scripts/extract_features.py \
+  python E2E/extract_features.py \
       --video_path /path/to/video.mp4 \
       --output_dir ./single_feat \
       --mode rgb
@@ -51,14 +51,14 @@ _PROJ_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJ_ROOT not in sys.path:
     sys.path.insert(0, _PROJ_ROOT)
 
-from E2E.loader import (
+from E2E.module.loader import (
     load_frames_from_dir,
     load_frames_from_video,
     find_videos_from_dir,
     find_frames_from_dir,
 )
-from E2E.flow import compute_optical_flow
-from E2E.features import build_windows, load_i3d_model, extract_features_for_video
+from E2E.module.flow import compute_optical_flow
+from E2E.module.features import build_windows, load_i3d_model, extract_features_for_video
 
 
 # ============================================================================
@@ -99,10 +99,10 @@ Examples:
     # ---- Model ----
     model_group = parser.add_argument_group("Model weights")
     model_group.add_argument("--rgb_model", type=str,
-                             default="E2E/model/rgb_imagenet.pt",
+                             default="model/rgb_imagenet.pt",
                              help="Path to RGB I3D weights")
     model_group.add_argument("--flow_model", type=str,
-                             default="E2E/model/flow_imagenet.pt",
+                             default="model/flow_imagenet.pt",
                              help="Path to Flow I3D weights")
     model_group.add_argument("--mode", type=str, default="rgb",
                              choices=["rgb", "flow", "rgb+flow"],

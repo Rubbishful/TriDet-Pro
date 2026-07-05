@@ -6,14 +6,14 @@ Video -> OpenCV frame extraction -> Optical flow -> I3D features (2048-dim)
       -> [optional] YOLO person detection + annotated video output
 
 Usage:
-    python scripts/full_pipeline.py \
+    python E2E/full_pipeline.py \
         --video id3shuju/shipin/01.mp4 \
         --config configs/id3_i3d.yaml \
         --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
         --output_dir result
 
     # With annotated video output:
-    python scripts/full_pipeline.py \
+    python E2E/full_pipeline.py \
         --video id3shuju/shipin/01.mp4 \
         --visualize
 """
@@ -35,11 +35,11 @@ from libs.core import load_config
 from libs.modeling import make_meta_arch
 
 # E2E module imports
-from E2E.loader import load_frames_from_video
-from E2E.flow import compute_optical_flow
-from E2E.features import build_windows, load_i3d_model, extract_features_for_video
-from E2E.inference import run_tridet_inference, save_results_txt, THUMOS14_LABEL_NAMES
-from E2E.visualizer import (
+from E2E.module.loader import load_frames_from_video
+from E2E.module.flow import compute_optical_flow
+from E2E.module.features import build_windows, load_i3d_model, extract_features_for_video
+from E2E.module.inference import run_tridet_inference, save_results_txt, THUMOS14_LABEL_NAMES
+from E2E.module.visualizer import (
     create_annotated_video,
     predictions_to_action_list,
 )
@@ -84,10 +84,10 @@ def main():
 
     # Optional arguments
     parser.add_argument("--rgb_model", type=str,
-                        default="E2E/model/rgb_imagenet.pt",
+                        default="model/rgb_imagenet.pt",
                         help="RGB I3D model weights")
     parser.add_argument("--flow_model", type=str,
-                        default="E2E/model/flow_imagenet.pt",
+                        default="model/flow_imagenet.pt",
                         help="Flow I3D model weights")
     parser.add_argument("--device", type=str, default="cuda:0",
                         help="Computation device")
@@ -106,7 +106,7 @@ def main():
     viz_group = parser.add_argument_group("Visualization (optional)")
     viz_group.add_argument("--visualize", action="store_true", default=False,
                         help="Generate annotated video with YOLO boxes + action labels")
-    viz_group.add_argument("--yolo_model", type=str, default="E2E/model/yolov8n.pt",
+    viz_group.add_argument("--yolo_model", type=str, default="model/yolov8n.pt",
                         help="YOLO model name or path (default: E2E/model/yolov8n.pt)")
     viz_group.add_argument("--yolo_conf", type=float, default=0.3,
                         help="YOLO confidence threshold (default: 0.3)")

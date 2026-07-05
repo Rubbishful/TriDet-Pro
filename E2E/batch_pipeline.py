@@ -9,7 +9,7 @@ Workflow:
   5. Export per-video detection results
 
 Usage:
-  python scripts/batch_pipeline.py \
+  python E2E/batch_pipeline.py \
       --video_dir ./data/videos\ \
       --output_dir ./result/ \
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
@@ -46,14 +46,14 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 sys.path.insert(0, _PROJECT_ROOT)
 sys.path.insert(0, _SCRIPT_DIR)
 
-from E2E.features import (
+from E2E.module.features import (
     build_windows,
     extract_features_for_video,
     load_i3d_model,
 )
-from E2E.flow import compute_optical_flow
-from E2E.loader import load_frames_from_video
-from E2E.visualizer import (
+from E2E.module.flow import compute_optical_flow
+from E2E.module.loader import load_frames_from_video
+from E2E.module.visualizer import (
     create_annotated_video,
     filter_actions_by_video,
 )
@@ -573,21 +573,21 @@ def main():
         epilog="""
 Examples:
   # Basic: process all videos in folder
-  python scripts/batch_pipeline.py \\
+  python E2E/batch_pipeline.py \\
       --video_dir ./my_videos \\
       --output_dir ./pipeline_output \\
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar
 
   # With custom model weights
-  python scripts/batch_pipeline.py \\
+  python E2E/batch_pipeline.py \\
       --video_dir ./videos \\
       --output_dir ./results \\
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \\
-      --rgb_model E2E/model/rgb_imagenet.pt \\
-      --flow_model E2E/model/flow_imagenet.pt
+      --rgb_model model/rgb_imagenet.pt \\
+      --flow_model model/flow_imagenet.pt
 
 Input format:
-  python scripts/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --ckpt <weights>
+  python E2E/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --ckpt <weights>
         """
     )
 
@@ -602,10 +602,10 @@ Input format:
     # Feature extraction options
     feat_group = parser.add_argument_group("Feature Extraction")
     feat_group.add_argument("--rgb_model", type=str,
-                            default="E2E/model/rgb_imagenet.pt",
+                            default="model/rgb_imagenet.pt",
                             help="Path to the RGB I3D weights")
     feat_group.add_argument("--flow_model", type=str,
-                            default="E2E/model/flow_imagenet.pt",
+                            default="model/flow_imagenet.pt",
                             help="Path to the Flow I3D weights")
     feat_group.add_argument("--feat_stride", type=int, default=4)
     feat_group.add_argument("--num_frames", type=int, default=16)
@@ -637,8 +637,8 @@ Input format:
     viz_group = parser.add_argument_group("Visualization (optional)")
     viz_group.add_argument("--visualize", action="store_true", default=False,
                         help="Generate annotated videos with YOLO boxes + action labels")
-    viz_group.add_argument("--yolo_model", type=str, default="E2E/model/yolov8n.pt",
-                        help="YOLO model name or path (default: E2E/model/yolov8n.pt)")
+    viz_group.add_argument("--yolo_model", type=str, default="model/yolov8n.pt",
+                        help="YOLO model name or path (default: model/yolov8n.pt)")
     viz_group.add_argument("--yolo_conf", type=float, default=0.3,
                         help="YOLO confidence threshold (default: 0.3)")
     viz_group.add_argument("--no_timeline", action="store_true", default=False,

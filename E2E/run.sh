@@ -1,7 +1,7 @@
 #!/bin/bash
 # Wrapper: activate conda PatternRecognition environment and execute the given command.
-# Usage: bash scripts/run.sh python script.py [args...]
-#        bash scripts/run.sh conda list
+# Usage: bash E2E/run.sh python script.py [args...]
+#        bash E2E/run.sh conda list
 
 CONDA_SH="/c/Developer/Anaconda/etc/profile.d/conda.sh"
 
