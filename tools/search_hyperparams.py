@@ -304,13 +304,15 @@ def generate_trials(search_space, args, rng):
 
             # discrete values (original syntax)
             if key in search_space and search_space[key]["type"] == "choice":
-                if all(v.replace(".", "").replace("-", "").replace("e-", "").replace("E-", "").isdigit()
-                       for v in vals if v not in ("True", "False")):
-                    if any("." in v or "e-" in v.lower() for v in vals):
-                        vals = [float(v) for v in vals]
+                numeric_vals = []
+                for v in vals:
+                    if v in ("True", "False"):
+                        numeric_vals.append(v == "True")
+                    elif v.replace(".", "").replace("-", "").replace("e-", "").replace("E-", "").isdigit():
+                        numeric_vals.append(float(v) if "." in v or "e-" in v.lower() else int(v))
                     else:
-                        vals = [int(v) for v in vals]
-                grid_space[key] = vals
+                        numeric_vals.append(v)
+                grid_space[key] = numeric_vals
             else:
                 numeric_vals = []
                 for v in vals:
@@ -356,7 +358,10 @@ def eval_trial_mAP(cfg, ckpt_path, print_freq=10):
     model = nn.DataParallel(model, device_ids=[device_idx])
 
     checkpoint = torch.load(str(ckpt_path), map_location=device)
-    model.load_state_dict(checkpoint["state_dict_ema"])
+    if "state_dict_ema" in checkpoint:
+        model.load_state_dict(checkpoint["state_dict_ema"])
+    else:
+        model.load_state_dict(checkpoint)
     del checkpoint
 
     val_db_vars = val_dataset.get_attributes()
@@ -423,12 +428,14 @@ def train_one_trial(cfg, train_indices, val_indices, trial_dir, args, rng):
     for block_start in range(0, total_epochs, args.step):
         block_end = min(block_start + args.step, total_epochs)
 
+        use_amp = args.amp or cfg["train_cfg"].get("use_amp", False)
         for epoch in range(block_start, block_end):
             train_one_epoch(
                 train_loader, model, optimizer, scheduler, epoch,
                 model_ema=model_ema,
                 clip_grad_l2norm=cfg["train_cfg"]["clip_grad_l2norm"],
                 print_freq=args.print_freq,
+                use_amp=use_amp,
             )
 
         val_loss = compute_val_loss(model_ema.module, val_loader)
@@ -437,7 +444,7 @@ def train_one_trial(cfg, train_indices, val_indices, trial_dir, args, rng):
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_epoch = block_end
-            torch.save(model_ema.module.state_dict(), trial_dir / "best_model.pth")
+            torch.save({"state_dict_ema": model_ema.module.state_dict()}, trial_dir / "best_model.pth")
 
         if np.isnan(val_loss) or val_loss > 1e6:
             print(f"  [WARN] Loss unstable ({val_loss:.2f}), stopping trial.")
@@ -631,5 +638,7 @@ if __name__ == "__main__":
                         help="load search space from YAML file (overrides --preset)")
     parser.add_argument("--output", default="", type=str,
                         help="override output folder")
+    parser.add_argument("--amp", action="store_true", default=False,
+                        help="enable automatic mixed precision training")
     args = parser.parse_args()
     main(args)

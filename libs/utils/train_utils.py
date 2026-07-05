@@ -2,12 +2,14 @@ import os
 import pickle
 import random
 import time
+import warnings
 from copy import deepcopy
 
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
+from torch.amp import GradScaler, autocast
 
 from .lr_schedulers import LinearWarmupMultiStepLR, LinearWarmupCosineAnnealingLR
 from .postprocessing import postprocess_results
@@ -132,69 +134,75 @@ def make_scheduler(
     return a supported scheduler
     All scheduler returned by this function should step every iteration
     """
-    if optimizer_config["warmup"]:
-        max_epochs = optimizer_config["epochs"] + optimizer_config["warmup_epochs"]
-        max_steps = max_epochs * num_iters_per_epoch
+    # PyTorch >= 2.1: _LRScheduler.__init__ calls _initial_step() which calls
+    # scheduler.step() before optimizer.step(), triggering a spurious warning.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            'ignore',
+            message='Detected call of `lr_scheduler.step()`')
+        if optimizer_config["warmup"]:
+            max_epochs = optimizer_config["epochs"] + optimizer_config["warmup_epochs"]
+            max_steps = max_epochs * num_iters_per_epoch
 
-        # get warmup params
-        warmup_epochs = optimizer_config["warmup_epochs"]
-        warmup_steps = warmup_epochs * num_iters_per_epoch
+            # get warmup params
+            warmup_epochs = optimizer_config["warmup_epochs"]
+            warmup_steps = warmup_epochs * num_iters_per_epoch
 
-        # get eta min
-        eta_min = optimizer_config["eta_min"]
+            # get eta min
+            eta_min = optimizer_config["eta_min"]
 
-        # with linear warmup: call our custom schedulers
-        if optimizer_config["schedule_type"] == "cosine":
-            # Cosine
-            scheduler = LinearWarmupCosineAnnealingLR(
-                optimizer,
-                warmup_steps,
-                max_steps,
-                eta_min=eta_min,
-                last_epoch=last_epoch
-            )
+            # with linear warmup: call our custom schedulers
+            if optimizer_config["schedule_type"] == "cosine":
+                # Cosine
+                scheduler = LinearWarmupCosineAnnealingLR(
+                    optimizer,
+                    warmup_steps,
+                    max_steps,
+                    eta_min=eta_min,
+                    last_epoch=last_epoch
+                )
 
-        elif optimizer_config["schedule_type"] == "multistep":
-            # Multi step
-            steps = [num_iters_per_epoch * step for step in optimizer_config["schedule_steps"]]
-            scheduler = LinearWarmupMultiStepLR(
-                optimizer,
-                warmup_steps,
-                steps,
-                gamma=optimizer_config["schedule_gamma"],
-                last_epoch=last_epoch
-            )
+            elif optimizer_config["schedule_type"] == "multistep":
+                # Multi step
+                steps = [num_iters_per_epoch * step for step in optimizer_config["schedule_steps"]]
+                scheduler = LinearWarmupMultiStepLR(
+                    optimizer,
+                    warmup_steps,
+                    steps,
+                    gamma=optimizer_config["schedule_gamma"],
+                    last_epoch=last_epoch
+                )
+            else:
+                raise TypeError("Unsupported scheduler!")
+
         else:
-            raise TypeError("Unsupported scheduler!")
+            max_epochs = optimizer_config["epochs"]
+            max_steps = max_epochs * num_iters_per_epoch
 
-    else:
-        max_epochs = optimizer_config["epochs"]
-        max_steps = max_epochs * num_iters_per_epoch
+            # get eta min
+            eta_min = optimizer_config["eta_min"]
 
-        # get eta min
-        eta_min = optimizer_config["eta_min"]
+            # without warmup: call default schedulers
+            if optimizer_config["schedule_type"] == "cosine":
+                # step per iteration
+                scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer,
+                    max_steps,
+                    eta_min=eta_min,
+                    last_epoch=last_epoch
+                )
 
-        # without warmup: call default schedulers
-        if optimizer_config["schedule_type"] == "cosine":
-            # step per iteration
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(
-                optimizer,
-                max_steps,
-                eta_min=eta_min,
-                last_epoch=last_epoch
-            )
-
-        elif optimizer_config["schedule_type"] == "multistep":
-            # step every some epochs
-            steps = [num_iters_per_epoch * step for step in optimizer_config["schedule_steps"]]
-            scheduler = optim.lr_scheduler.MultiStepLR(
-                optimizer,
-                steps,
-                gamma=schedule_config["gamma"],
-                last_epoch=last_epoch
-            )
-        else:
-            raise TypeError("Unsupported scheduler!")
+            elif optimizer_config["schedule_type"] == "multistep":
+                # step every some epochs
+                steps = [num_iters_per_epoch * step for step in optimizer_config["schedule_steps"]]
+                scheduler = optim.lr_scheduler.MultiStepLR(
+                    optimizer,
+                    steps,
+                    gamma=optimizer_config["schedule_gamma"],
+                    last_epoch=last_epoch
+                )
+            else:
+                raise TypeError("Unsupported scheduler!")
 
     return scheduler
 
@@ -268,6 +276,7 @@ def train_one_epoch(
         print_freq=20,
         grad_accum=1,
         return_losses=False,
+        use_amp=False,
 ):
     """Training the model for one epoch"""
     # set up meters
@@ -293,19 +302,32 @@ def train_one_epoch(
     print("\n[Train]: Epoch {:d} started".format(curr_epoch))
     start = time.time()
     optimizer.zero_grad(set_to_none=True)
+    scaler = GradScaler('cuda', enabled=use_amp)
     for iter_idx, video_list in enumerate(train_loader, 0):
         # forward / backward the model
-        losses = model(video_list)
-        (losses['final_loss'] / grad_accum).backward()
+        with autocast('cuda', enabled=use_amp):
+            losses = model(video_list)
+            loss = losses['final_loss'] / grad_accum
+        scaler.scale(loss).backward()
 
         # step after accumulation steps
         if (iter_idx + 1) % grad_accum == 0:
-            if clip_grad_l2norm > 0.0:
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(),
-                    clip_grad_l2norm
-                )
-            optimizer.step()
+            if use_amp:
+                scaler.unscale_(optimizer)
+                if clip_grad_l2norm > 0.0:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(),
+                        clip_grad_l2norm
+                    )
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                if clip_grad_l2norm > 0.0:
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(),
+                        clip_grad_l2norm
+                    )
+                optimizer.step()
             scheduler.step()
             optimizer.zero_grad(set_to_none=True)
 

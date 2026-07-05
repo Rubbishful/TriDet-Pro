@@ -81,6 +81,7 @@ train_cfg: {
   cls_prior_prob: 0.01,
   center_sample: radius,
   center_sample_radius: 1.5,
+  use_amp: True,
 }
 test_cfg: {
   voting_thresh: 0.7,

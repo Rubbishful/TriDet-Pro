@@ -12,7 +12,7 @@
 search:
   iou_loss_weight:
     type: choice
-    values: [0.5, 1.0, 1.5]   # TODO: update based on Round 1 best
+    values: [0.1, 0.25, 0.5]
 
   iou_per_level:
     type: choice
