@@ -22,10 +22,13 @@ import os, sys, subprocess, time, argparse, tempfile
 from datetime import datetime
 from pathlib import Path
 
+# 确保项目根目录在 sys.path 中
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+
 from evaluate.common import deep_set, dump_yaml, parse_maps, load_ablation_csv, save_ablation_csv
 
 # ---- 路径配置 ----
-REPO        = Path(__file__).resolve().parent.parent
 PYTHON      = sys.executable
 RESULT_DIR  = REPO / 'evaluate' / 'results'
 CKPT_DIR    = REPO / 'ckpt'
