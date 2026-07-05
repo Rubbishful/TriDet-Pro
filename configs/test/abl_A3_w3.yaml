@@ -71,7 +71,7 @@ model:
     duration_thresh: 0.05
     ext_score_file: null
 opt:
-  learning_rate: 0.0001
+  learning_rate: 0.0004
   warmup_epochs: 20
   epochs: 20
   weight_decay: 0.025
