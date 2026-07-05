@@ -24,7 +24,7 @@ def test_scheduler_cosine_warmup():
         'eta_min': 1e-6,
         'schedule_type': 'cosine',
     }
-    sched = make_scheduler(opt_cfg, opt, num_iters_per_epoch=100, last_epoch=-1)
+    sched = make_scheduler(opt, opt_cfg, num_iters_per_epoch=100, last_epoch=-1)
     assert sched is not None
     # Step a few iterations
     for _ in range(10):
@@ -47,7 +47,7 @@ def test_scheduler_multistep_warmup():
         'schedule_steps': [10, 20],
         'schedule_gamma': 0.1,
     }
-    sched = make_scheduler(opt_cfg, opt, num_iters_per_epoch=100, last_epoch=-1)
+    sched = make_scheduler(opt, opt_cfg, num_iters_per_epoch=100, last_epoch=-1)
     for _ in range(10):
         opt.step()
         sched.step()
@@ -66,7 +66,7 @@ def test_scheduler_cosine_no_warmup():
         'eta_min': 1e-6,
         'schedule_type': 'cosine',
     }
-    sched = make_scheduler(opt_cfg, opt, num_iters_per_epoch=100, last_epoch=-1)
+    sched = make_scheduler(opt, opt_cfg, num_iters_per_epoch=100, last_epoch=-1)
     for _ in range(10):
         opt.step()
         sched.step()
@@ -87,7 +87,7 @@ def test_scheduler_multistep_no_warmup():
         'schedule_steps': [10, 20],
         'schedule_gamma': 0.1,
     }
-    sched = make_scheduler(opt_cfg, opt, num_iters_per_epoch=100, last_epoch=-1)
+    sched = make_scheduler(opt, opt_cfg, num_iters_per_epoch=100, last_epoch=-1)
     for _ in range(10):
         opt.step()
         sched.step()
@@ -107,7 +107,7 @@ def test_scheduler_invalid_type():
         'schedule_type': 'invalid_type',
     }
     try:
-        make_scheduler(opt_cfg, opt, num_iters_per_epoch=100)
+        make_scheduler(opt, opt_cfg, num_iters_per_epoch=100)
         assert False, 'Should have raised TypeError'
     except TypeError:
         print('TypeError for invalid schedule_type: OK')

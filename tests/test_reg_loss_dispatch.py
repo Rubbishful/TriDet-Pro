@@ -35,8 +35,8 @@ def test_compute_reg_loss_dispatch():
         cfg['model']['reg_loss_type'] = lt
         model = TriDet(**cfg['model'])
 
-        pred = torch.randn(4, 200, 2)
-        gt = torch.randn(4, 200, 2)
+        pred = torch.rand(400, 2)
+        gt = torch.rand(400, 2)
         loss = model._compute_reg_loss(pred, gt)
 
         assert loss.ndim == 0, f'{lt}: expected scalar loss, got {loss.shape}'
@@ -65,8 +65,8 @@ def test_compute_reg_loss_invalid():
 
     model = TriDet(**cfg['model'])
 
-    pred = torch.randn(4, 200, 2)
-    gt = torch.randn(4, 200, 2)
+    pred = torch.rand(400, 2)
+    gt = torch.rand(400, 2)
     try:
         model._compute_reg_loss(pred, gt)
         assert False, 'Should have raised ValueError'

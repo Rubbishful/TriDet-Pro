@@ -30,16 +30,20 @@ def test_sigmoid_focal_loss():
 
 
 def _test_reg_loss(fn, name):
-    """Helper: test a regression loss with valid shapes and finite output."""
-    pred = torch.randn(4, 200, 2)
-    gt = torch.randn(4, 200, 2)
+    """Helper: test a regression loss with valid shapes and finite output.
+
+    Loss functions expect (N, 2) input — flatten batch and time dims.
+    """
+    B, T = 4, 200
+    pred = torch.rand(B * T, 2)
+    gt = torch.rand(B * T, 2)
     loss = fn(pred, gt, reduction='sum')
     assert loss.ndim == 0, f'{name}: expected scalar, got {loss.shape}'
     assert torch.isfinite(loss), f'{name}: loss should be finite'
     print(f'{name}: {loss.item():.4f} OK')
 
     loss_none = fn(pred, gt, reduction='none')
-    assert loss_none.shape == (4, 200), f'{name}: wrong none shape {loss_none.shape}'
+    assert loss_none.shape == (B * T,), f'{name}: wrong none shape {loss_none.shape}'
     print(f'{name} (none): shape {loss_none.shape} OK')
 
 
@@ -56,16 +60,16 @@ def test_ctr_eiou_loss_1d():
 
 
 def test_ctr_alpha_diou_loss_1d():
-    pred = torch.randn(4, 200, 2)
-    gt = torch.randn(4, 200, 2)
+    pred = torch.rand(400, 2)
+    gt = torch.rand(400, 2)
     loss = ctr_alpha_diou_loss_1d(pred, gt, reduction='sum', alpha=3.0)
     assert loss.ndim == 0 and torch.isfinite(loss)
     print(f'ctr_alpha_diou_loss_1d (alpha=3): {loss.item():.4f} OK')
 
 
 def test_ctr_focaler_diou_loss_1d():
-    pred = torch.randn(4, 200, 2)
-    gt = torch.randn(4, 200, 2)
+    pred = torch.rand(400, 2)
+    gt = torch.rand(400, 2)
     loss = ctr_focaler_diou_loss_1d(pred, gt, reduction='sum', d=0.0, u=0.95)
     assert loss.ndim == 0 and torch.isfinite(loss)
     print(f'ctr_focaler_diou_loss_1d: {loss.item():.4f} OK')
@@ -81,7 +85,7 @@ def test_quality_focal_loss():
 
 def test_ctr_giou_perfect_match():
     """GIoU should be ~0 when pred == gt."""
-    x = torch.randn(4, 100, 2)
+    x = torch.rand(400, 2)
     loss = ctr_giou_loss_1d(x, x, reduction='mean')
     assert loss.item() < 1e-5, f'GIoU for identical tensors should be ~0, got {loss.item()}'
     print(f'ctr_giou_loss_1d (identical): {loss.item():.10f} OK')
