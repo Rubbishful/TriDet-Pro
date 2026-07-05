@@ -1,0 +1,20 @@
+# Grid search config for Quality Focal Loss beta parameter in IoU prediction head.
+# Load with: --search-config configs/para_search/iou_qfl_beta.yaml
+#
+# Background:
+#   The IoU head uses Quality Focal Loss: |target - sigmoid(input)|^beta
+#   Default beta=2.0 produced IoU loss converging to 0.04 but mAP dropped from
+#   68.59% (baseline) to 60.50%. This search finds a better beta value.
+#
+# Total combinations: 9
+# Estimated time (single GPU, 60 epochs/trial): ~2 min/trial -> ~18 minutes total
+#
+# Usage:
+#   python tools/search_hyperparams.py configs/thumos_i3d_iou_tal_iteration.yaml \
+#       --search-config configs/para_search/iou_qfl_beta.yaml \
+#       --trials 0 --max-epochs 60 --step 5
+
+search:
+  iou_qfl_beta:
+    type: choice
+    values: [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0]
