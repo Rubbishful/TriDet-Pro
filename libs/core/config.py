@@ -41,7 +41,7 @@ DEFAULTS = {
     "model": {
         # type of backbone (SGP | conv)
         "backbone_type": 'SGP',
-        # type of FPN (fpn | identity)
+        # type of FPN (fpn | identity | bifpn)
         "fpn_type": "identity",
         "backbone_arch": (2, 2, 5),
         # scale factor between pyramid levels
@@ -60,6 +60,14 @@ DEFAULTS = {
         "fpn_dim": 512,
         # if add ln at the end of fpn outputs
         "fpn_with_ln": True,
+        # BiFPN specific (only used when fpn_type == 'bifpn')
+        "bifpn_num_repeats": 1,
+        "bifpn_fusion_method": 'fast_norm',  # fast_norm | sum
+        "bifpn_drop_path": 0.0,
+        # regression loss type: diou | eiou | alpha_diou | focaler_diou
+        "reg_loss_type": "diou",
+        # extra kwargs for the chosen loss, e.g. {"alpha": 3} or {"d": 0.0, "u": 0.95}
+        "reg_loss_kwargs": {},
         # feat dim for head
         "head_dim": 512,
         # kernel size for reg/cls/center heads
@@ -94,6 +102,21 @@ DEFAULTS = {
         "att_position": 'fusion',  # 'pre_fusion' | 'fusion' | 'mlp'
         "att_reduction": 16,  # reduction ratio for SE
         "att_kernel_size": 3,  # kernel size for ECA
+        # IoU prediction head
+        "use_iou_head": False,
+        "iou_head_dim": 512,
+        "iou_head_layers": 4,
+        "iou_loss_weight": 1.0,
+        "iou_loss_type": "qfl",     # IoU head loss: 'bce' | 'qfl'
+        "iou_qfl_beta": 2.0,       # QFL modulating factor (only when iou_loss_type='qfl')
+        "iou_warmup_epochs": 5,    # warmup epochs before IoU loss activates
+        "iou_per_level": False,    # per-FPN-level IoU heads
+        "iou_head_residual": False,  # residual connections in IoUHead
+        # Task-Aligned Assigner
+        "tal_topk": 0,          # 0 = disable TAL
+        "tal_alpha": 1.0,
+        "tal_beta": 4.0,
+        "tal_start_epoch": 5,
 
     },
     "train_cfg": {

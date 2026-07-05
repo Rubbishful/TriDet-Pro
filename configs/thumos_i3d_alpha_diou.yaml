@@ -26,12 +26,14 @@ model: {
   iou_weight_power: 0.2,
   use_trident_head: True,
   sgp_mlp_dim: 768,
-  input_noise: 0.0005
+  input_noise: 0.0005,
+  reg_loss_type: alpha_diou,
+  reg_loss_kwargs: { alpha: 3 },
 }
 opt: {
   learning_rate: 0.0001,
   warmup_epochs: 20,
-  epochs: 20,
+  epochs: 60,
   weight_decay: 0.025,
 }
 loader: {

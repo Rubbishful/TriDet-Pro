@@ -1,0 +1,28 @@
+# Grid search config for SGP backbone + Trident head hyperparameters.
+# Load with: --search-config configs/para_search/sgp_detection.yaml
+#
+# Total combinations: 5 × 5 × 5 × 5 = 625
+# Estimated time (single GPU, 50 epochs/trial): ~2 min/trial → ~21 hours
+
+search:
+  # SGP backbone — MLP hidden dimension
+  sgp_mlp_dim:
+    type: choice
+    values: [256, 384, 512, 768, 1024]
+
+  # SGP backbone — global branch kernel scale factor
+  # up_size = round((kernel_size + 1) * k)
+  k:
+    type: choice
+    values: [1.3, 1.5, 2.0, 3.0, 5.0]
+
+  # Trident head — number of boundary offset bins (excluding 0)
+  num_bins:
+    type: choice
+    values: [8, 12, 16, 20, 24]
+
+  # Regression loss — IoU weight power
+  # weight = IoU ^ power; lower → more weight on low-quality matches
+  iou_weight_power:
+    type: choice
+    values: [0.1, 0.2, 0.5, 1.0, 1.5]

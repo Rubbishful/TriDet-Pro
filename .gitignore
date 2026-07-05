@@ -22,6 +22,8 @@ eval_output
 .idea/
 .claude/
 *.code-workspace
+Tridet.code-workspace
+.reasonix/
 
 # Project docs (optional: keep if you want to share with teammates)
 # doc/

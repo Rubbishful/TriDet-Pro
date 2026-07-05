@@ -171,6 +171,7 @@ def main(args):
 
     for epoch in range(args.start_epoch, max_epochs):
         # train for one epoch
+        use_amp = args.amp or cfg['train_cfg'].get('use_amp', False)
         records = train_one_epoch(
             train_loader,
             model,
@@ -182,6 +183,7 @@ def main(args):
             print_freq=args.print_freq,
             grad_accum=args.grad_accum,
             return_losses=True,
+            use_amp=use_amp,
         )
         if records:
             all_loss_records.extend(records)
@@ -239,5 +241,7 @@ if __name__ == '__main__':
                         help='override batch size from config, -1 to use config value')
     parser.add_argument('--grad-accum', default=1, type=int,
                         help='gradient accumulation steps (default: 1)')
+    parser.add_argument('--amp', action='store_true', default=False,
+                        help='enable automatic mixed precision training')
     args = parser.parse_args()
     main(args)

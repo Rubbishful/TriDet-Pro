@@ -9,7 +9,10 @@ and progressive early stopping (same logic as train_cv.py), then ranks all
 trials by best validation loss.
 
 Usage:
-  # Random search with built-in search space
+  # Grid search with default space (50 epochs, validate every 5)
+  python tools/search_hyperparams.py configs/thumos_i3d.yaml
+
+  # Random search with 30 trials
   python tools/search_hyperparams.py configs/thumos_i3d.yaml \\
       --trials 30 --max-epochs 10 --step 5
 
@@ -17,6 +20,10 @@ Usage:
   python tools/search_hyperparams.py configs/thumos_i3d.yaml \\
       --trials 0 --grid "sgp_mlp_dim:384,768" --grid "k:1.5,5.0" \\
       --max-epochs 10 --step 5
+
+  # Grid search with range sampling (log-uniform 5 points)
+  python tools/search_hyperparams.py configs/thumos_i3d.yaml \\
+      --trials 0 --grid "lr:1e-5,1e-2,log,5" --max-epochs 10 --step 5
 
   # Resume from a previous output folder
   python tools/search_hyperparams.py configs/thumos_i3d.yaml \\
@@ -47,6 +54,7 @@ from pprint import pformat
 import numpy as np
 import torch
 import torch.nn as nn
+import yaml
 from torch.utils.data import Subset
 
 PROJ_ROOT = Path(__file__).resolve().parent.parent
@@ -56,9 +64,9 @@ from libs.core import load_config
 from libs.datasets import make_dataset, make_data_loader
 from libs.modeling import make_meta_arch
 from libs.utils import (
-    AverageMeter, ModelEma,
+    ANETdetection, AverageMeter, ModelEma,
     fix_random_seed, make_optimizer, make_scheduler,
-    train_one_epoch,
+    train_one_epoch, valid_one_epoch,
 )
 
 # ---------------------------------------------------------------------------
@@ -80,16 +88,18 @@ DEFAULT_SEARCH_SPACE = {
     # --- Trident-head ---
     "num_bins":            {"type": "choice",       "values": [8, 12, 16, 20, 24]},
     "iou_weight_power":    {"type": "choice",       "values": [0.1, 0.2, 0.5, 1.0, 1.5]},
-    # --- channel attention ---
-    "use_att":             {"type": "choice",       "values": [False, True]},
-    "att_type":            {"type": "choice",       "values": ["SE", "ECA"]},
-    "att_reduction":       {"type": "choice",       "values": [8, 16, 32]},
+    # --- architecture ---
+    "use_abs_pe":          {"type": "choice",       "values": [False, True]},
+    "head_kernel_size":    {"type": "choice",       "values": [3, 5, 7]},
+    "head_num_layers":     {"type": "choice",       "values": [2, 3, 4]},
     # --- training ---
-    "learning_rate":       {"type": "choice",       "values": [5e-5, 1e-4, 2e-4, 5e-4, 1e-3]},
-    "weight_decay":        {"type": "choice",       "values": [0.01, 0.025, 0.05, 0.1]},
+    "learning_rate":       {"type": "log_uniform",  "low": -5, "high": -2.3},
+    "weight_decay":        {"type": "log_uniform",  "low": -2.3, "high": -0.5},
+    "warmup_epochs":       {"type": "choice",       "values": [5, 10, 15, 20, 30]},
     "center_sample_radius": {"type": "choice",      "values": [1.0, 1.5, 2.0, 2.5]},
     "label_smoothing":     {"type": "choice",       "values": [0.0, 0.05, 0.1]},
     "droppath":            {"type": "choice",       "values": [0.0, 0.05, 0.1, 0.15, 0.2]},
+    "dropout":             {"type": "choice",       "values": [0.0, 0.05, 0.1, 0.15]},
 }
 
 
@@ -114,36 +124,90 @@ def sample_config(search_space, rng):
     sampled = {}
     for key, pdef in search_space.items():
         sampled[key] = sample_param(pdef, rng)
-    # cross-constraint: att_type/att_reduction only relevant when use_att=True
-    # (these are still sampled but will be ignored by the model when use_att=False)
     return sampled
+
+
+# Map each searchable param to its config section(s).
+# Format: param_name -> (section, ...) — single-element tuple = direct key,
+# multi-element tuple = distributed across sections by name.
+PARAM_MAP = {
+    # model
+    "sgp_mlp_dim":           ("model",),
+    "k":                     ("model",),
+    "init_conv_vars":        ("model",),
+    "n_sgp_win_size":        ("model",),
+    "input_noise":           ("model",),
+    "head_dim":              ("model",),
+    "fpn_dim":               ("model",),
+    "embd_dim":              ("model",),
+    "num_bins":              ("model",),
+    "iou_weight_power":      ("model",),
+    "iou_loss_type":           ("model",),
+    "iou_loss_weight":        ("model",),
+    "iou_qfl_beta":           ("model",),
+    "iou_warmup_epochs":      ("model",),
+    "iou_per_level":          ("model",),
+    "iou_head_residual":      ("model",),
+    "use_abs_pe":            ("model",),
+    "head_kernel_size":      ("model",),
+    "head_num_layers":       ("model",),
+    # train_cfg
+    "center_sample_radius":  ("train_cfg",),
+    "label_smoothing":       ("train_cfg",),
+    "droppath":              ("train_cfg",),
+    "dropout":               ("train_cfg",),
+    # opt
+    "learning_rate":         ("opt",),
+    "weight_decay":          ("opt",),
+    "warmup_epochs":         ("opt",),
+}
 
 
 def apply_params(cfg, params):
     """Override config values from a flat params dict (in-place)."""
-    model_keys = {
-        "sgp_mlp_dim", "k", "init_conv_vars", "n_sgp_win_size", "input_noise",
-        "head_dim", "fpn_dim", "embd_dim", "num_bins", "iou_weight_power",
-        "use_att", "att_type", "att_reduction",
-    }
-    train_cfg_keys = {"center_sample_radius", "label_smoothing", "droppath"}
-    opt_keys = {"learning_rate", "weight_decay"}
-
     for k, v in params.items():
-        if k in model_keys:
-            cfg["model"][k] = v
-        elif k in train_cfg_keys:
-            cfg["train_cfg"][k] = v
-        elif k in opt_keys:
-            cfg["opt"][k] = v
-
-    # also ensure n_sgp_win_size is per-level if needed
+        if k in PARAM_MAP:
+            for section in PARAM_MAP[k]:
+                cfg[section][k] = v
+        else:
+            print(f"[WARN] Unknown param '{k}' — applied to cfg root")
+            cfg[k] = v
     return cfg
 
 
+def load_search_config(path):
+    """Load search space from a YAML config file.
+
+    Expected format:
+        search:
+          param_name:
+            type: choice
+            values: [v1, v2, ...]
+          param_name:
+            type: log_uniform
+            low: -5
+            high: -2.3
+    """
+    with open(path, "r") as f:
+        cfg = yaml.safe_load(f)
+    if "search" not in cfg:
+        raise ValueError(f"Search config {path} missing top-level 'search' key")
+    return cfg["search"]
+
+
 def build_search_space(args):
-    """Build the effective search space: default overridden by --grid entries."""
-    space = deepcopy(DEFAULT_SEARCH_SPACE)
+    """Build the effective search space: config file > preset > default."""
+    if args.search_config:
+        space = load_search_config(Path(args.search_config))
+    elif args.preset:
+        presets = _build_presets()
+        if args.preset not in presets:
+            print(f"[ERROR] Unknown preset '{args.preset}'. Available: {list(presets.keys())}")
+            sys.exit(1)
+        space = presets[args.preset]
+    else:
+        space = deepcopy(DEFAULT_SEARCH_SPACE)
+
     if args.tune:
         # --tune limits to the params explicitly listed (comma-separated)
         keep = set(k.strip() for k in args.tune.split(","))
@@ -151,13 +215,6 @@ def build_search_space(args):
         if not space:
             print("[ERROR] --tune filtered all params. Check your list.")
             sys.exit(1)
-    if args.preset:
-        # --preset replaces the space entirely with a named subset
-        presets = _build_presets()
-        if args.preset not in presets:
-            print(f"[ERROR] Unknown preset '{args.preset}'. Available: {list(presets.keys())}")
-            sys.exit(1)
-        space = presets[args.preset]
     return space
 
 
@@ -176,15 +233,16 @@ def _build_presets():
             "center_sample_radius": {"type": "choice", "values": [1.0, 1.5, 2.0, 2.5]},
             "label_smoothing":  {"type": "choice", "values": [0.0, 0.05, 0.1]},
         },
-        "attention": {
-            "use_att":       {"type": "choice", "values": [False, True]},
-            "att_type":      {"type": "choice", "values": ["SE", "ECA"]},
-            "att_reduction": {"type": "choice", "values": [8, 16, 32]},
+        "architecture": {
+            "use_abs_pe":       {"type": "choice", "values": [False, True]},
+            "head_kernel_size": {"type": "choice", "values": [3, 5, 7]},
+            "head_num_layers":  {"type": "choice", "values": [2, 3, 4]},
         },
         "optimization": {
-            "learning_rate": {"type": "choice", "values": [5e-5, 1e-4, 2e-4, 5e-4, 1e-3]},
-            "weight_decay":  {"type": "choice", "values": [0.01, 0.025, 0.05, 0.1]},
-            "droppath":      {"type": "choice", "values": [0.0, 0.05, 0.1, 0.15, 0.2]},
+            "learning_rate":  {"type": "log_uniform", "low": -5, "high": -2.3},
+            "weight_decay":   {"type": "log_uniform", "low": -2.3, "high": -0.5},
+            "warmup_epochs":  {"type": "choice", "values": [5, 10, 15, 20, 30]},
+            "droppath":       {"type": "choice", "values": [0.0, 0.05, 0.1, 0.15, 0.2]},
         },
         "capacity": {
             "head_dim": {"type": "choice", "values": [256, 384, 512, 768]},
@@ -205,25 +263,57 @@ def generate_trials(search_space, args, rng):
         # random search
         return [sample_config(search_space, rng) for _ in range(args.trials)]
     else:
-        # grid search over --grid entries only
+        # grid search: --grid flags override, otherwise auto-grid from search space
+        # Supports two formats:
+        #   "param:val1,val2,..."          — discrete values (backwards compatible)
+        #   "param:lo,hi,log,N"            — N points in [lo, hi] on log scale
+        #   "param:lo,hi,linear,N"         — N points in [lo, hi] linearly spaced
         grid_space = {}
-        for entry in args.grid:
-            key, vals = entry.split(":", 1)
+
+        if args.grid:
+            # explicit --grid entries
+            source = args.grid
+        else:
+            # auto-build from search space: only choice-type params are gridded
+            source = []
+            for key, pdef in search_space.items():
+                if pdef["type"] == "choice":
+                    source.append(f"{key}:{','.join(str(v) for v in pdef['values'])}")
+                else:
+                    print(f"[Grid] Skipping {key} (type={pdef['type']}, not grid-compatible)")
+
+        for entry in source:
+            key, val_str = entry.split(":", 1)
             key = key.strip()
-            vals = [v.strip() for v in vals.split(",")]
-            # infer type from default space or guess
+            vals = [v.strip() for v in val_str.split(",")]
+
+            # detect range syntax: last token is a number N (point count)
+            # and second-to-last is "log" or "linear"
+            if len(vals) >= 4 and vals[-1].isdigit() and vals[-2] in ("log", "linear"):
+                n_pts = int(vals[-1])
+                mode = vals[-2]
+                lo = float(vals[0])
+                hi = float(vals[1])
+                if mode == "log":
+                    grid_space[key] = list(np.logspace(
+                        np.log10(lo), np.log10(hi), n_pts).tolist())
+                else:
+                    grid_space[key] = list(np.linspace(lo, hi, n_pts).tolist())
+                print(f"[Grid] {key}: {lo}..{hi} ({mode}, {n_pts} pts) -> {grid_space[key]}")
+                continue
+
+            # discrete values (original syntax)
             if key in search_space and search_space[key]["type"] == "choice":
-                # try to keep the same type
-                pdef = search_space[key]
-                if all(v.replace(".", "").replace("-", "").isdigit() for v in vals if v not in ("True", "False")):
-                    # numeric
-                    if any("." in v for v in vals):
-                        vals = [float(v) for v in vals]
+                numeric_vals = []
+                for v in vals:
+                    if v in ("True", "False"):
+                        numeric_vals.append(v == "True")
+                    elif v.replace(".", "").replace("-", "").replace("e-", "").replace("E-", "").isdigit():
+                        numeric_vals.append(float(v) if "." in v or "e-" in v.lower() else int(v))
                     else:
-                        vals = [int(v) for v in vals]
-                grid_space[key] = vals
+                        numeric_vals.append(v)
+                grid_space[key] = numeric_vals
             else:
-                # guess numeric
                 numeric_vals = []
                 for v in vals:
                     if v in ("True", "False"):
@@ -240,12 +330,59 @@ def generate_trials(search_space, args, rng):
 
 @torch.no_grad()
 def compute_val_loss(model, val_loader):
-    model.train()
+    model.eval()
     meter = AverageMeter()
     for video_list in val_loader:
         losses = model(video_list)
         meter.update(losses["final_loss"].item(), len(video_list))
     return meter.avg
+
+
+def eval_trial_mAP(cfg, ckpt_path, print_freq=10):
+    """Evaluate a saved model checkpoint on the test set and return mAP.
+
+    Builds a fresh model, loads the checkpoint, runs valid_one_epoch with
+    ANETdetection evaluator, then cleans up GPU memory.
+    """
+    device = cfg["devices"][0]
+    device_idx = torch.device(device).index
+
+    val_dataset = make_dataset(
+        cfg["dataset_name"], False, cfg["val_split"], **cfg["dataset"]
+    )
+    val_loader = make_data_loader(
+        val_dataset, False, None, 1, cfg["loader"]["num_workers"]
+    )
+
+    model = make_meta_arch(cfg["model_name"], **cfg["model"])
+    model = nn.DataParallel(model, device_ids=[device_idx])
+
+    checkpoint = torch.load(str(ckpt_path), map_location=device)
+    if "state_dict_ema" in checkpoint:
+        model.load_state_dict(checkpoint["state_dict_ema"])
+    else:
+        model.load_state_dict(checkpoint)
+    del checkpoint
+
+    val_db_vars = val_dataset.get_attributes()
+    det_eval = ANETdetection(
+        val_dataset.json_file,
+        val_dataset.split[0],
+        tiou_thresholds=val_db_vars["tiou_thresholds"],
+    )
+
+    mAP = valid_one_epoch(
+        val_loader, model, -1,
+        evaluator=det_eval,
+        ext_score_file=cfg["test_cfg"].get("ext_score_file", None),
+        tb_writer=None,
+        print_freq=print_freq,
+    )
+
+    del model, val_loader, val_dataset, det_eval
+    torch.cuda.empty_cache()
+
+    return mAP
 
 
 def check_early_stop(block_losses, threshold=0.01, patience=3):
@@ -291,12 +428,14 @@ def train_one_trial(cfg, train_indices, val_indices, trial_dir, args, rng):
     for block_start in range(0, total_epochs, args.step):
         block_end = min(block_start + args.step, total_epochs)
 
+        use_amp = args.amp or cfg["train_cfg"].get("use_amp", False)
         for epoch in range(block_start, block_end):
             train_one_epoch(
                 train_loader, model, optimizer, scheduler, epoch,
                 model_ema=model_ema,
                 clip_grad_l2norm=cfg["train_cfg"]["clip_grad_l2norm"],
                 print_freq=args.print_freq,
+                use_amp=use_amp,
             )
 
         val_loss = compute_val_loss(model_ema.module, val_loader)
@@ -305,7 +444,7 @@ def train_one_trial(cfg, train_indices, val_indices, trial_dir, args, rng):
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             best_epoch = block_end
-            torch.save(model_ema.module.state_dict(), trial_dir / "best_model.pth")
+            torch.save({"state_dict_ema": model_ema.module.state_dict()}, trial_dir / "best_model.pth")
 
         if np.isnan(val_loss) or val_loss > 1e6:
             print(f"  [WARN] Loss unstable ({val_loss:.2f}), stopping trial.")
@@ -313,12 +452,18 @@ def train_one_trial(cfg, train_indices, val_indices, trial_dir, args, rng):
         if check_early_stop(block_losses, args.threshold, args.patience):
             break
 
-    return {
+    result = {
         "best_val_loss": float(best_val_loss),
         "best_epoch": best_epoch,
         "stopped_epoch": block_end,
         "block_losses": [float(v) for v in block_losses],
     }
+
+    # free training GPU memory before eval
+    del model, model_ema, optimizer, scheduler, train_loader, val_loader
+    torch.cuda.empty_cache()
+
+    return result
 
 
 def main(args):
@@ -378,7 +523,7 @@ def main(args):
     results = []
     summary_path = exp_folder / "summary.csv"
     fieldnames = list(search_space.keys()) + [
-        "trial", "best_val_loss", "best_epoch", "stopped_epoch", "duration_s"
+        "trial", "best_val_loss", "best_epoch", "stopped_epoch", "mAP", "duration_s"
     ]
 
     for i, params in enumerate(trials):
@@ -389,11 +534,15 @@ def main(args):
         if (trial_dir / "result.json").exists():
             with open(trial_dir / "result.json") as f:
                 result = json.load(f)
-            print(f"[{i+1:3d}/{len(trials):3d}] SKIP (already done)  "
-                  f"best_loss={result['best_val_loss']:.4f}")
-            row = {**params, "trial": i, **result}
-            results.append(row)
-            continue
+            if "mAP" in result:
+                print(f"[{i+1:3d}/{len(trials):3d}] SKIP (already done)  "
+                      f"best_loss={result['best_val_loss']:.4f}  mAP={result['mAP']:.2f}")
+                row = {**params, "trial": i, **result}
+                results.append(row)
+                continue
+            else:
+                print(f"[{i+1:3d}/{len(trials):3d}] RESUME (re-eval mAP)  "
+                      f"best_loss={result['best_val_loss']:.4f}")
 
         # build per-trial config
         trial_cfg = deepcopy(base_cfg)
@@ -412,11 +561,17 @@ def main(args):
         trial_rng = fix_random_seed(base_cfg["init_rand_seed"] + i, include_cuda=True)
         t_start = time.time()
         result = train_one_trial(trial_cfg, train_indices, val_indices, trial_dir, args, trial_rng)
-        result["duration_s"] = round(time.time() - t_start, 1)
+        train_time = round(time.time() - t_start, 1)
+
+        # evaluate mAP on test set using the saved best model
+        best_ckpt = trial_dir / "best_model.pth"
+        mAP = eval_trial_mAP(trial_cfg, best_ckpt, print_freq=args.print_freq)
+        result["mAP"] = mAP
+        result["duration_s"] = train_time + round(time.time() - t_start - train_time, 1)
 
         print(f"  => best_val_loss={result['best_val_loss']:.4f}  "
               f"best_epoch={result['best_epoch']}  stopped={result['stopped_epoch']}  "
-              f"time={result['duration_s']:.0f}s")
+              f"mAP={mAP:.2f}  time={result['duration_s']:.0f}s")
 
         with open(trial_dir / "result.json", "w") as f:
             json.dump(result, f, indent=2)
@@ -424,8 +579,8 @@ def main(args):
         row = {**params, "trial": i, **result}
         results.append(row)
 
-        # write incremental summary
-        sorted_results = sorted(results, key=lambda r: r["best_val_loss"])
+        # write incremental summary (sorted by mAP, higher is better)
+        sorted_results = sorted(results, key=lambda r: r.get("mAP", 0), reverse=True)
         with open(summary_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
@@ -434,14 +589,15 @@ def main(args):
         # print current top 3
         print(f"  [Top-3 so far]")
         for rank, r in enumerate(sorted_results[:3]):
-            print(f"    #{rank+1} trial={r['trial']:03d}  val_loss={r['best_val_loss']:.4f}  "
-                  f"epoch={r['best_epoch']}")
+            print(f"    #{rank+1} trial={r['trial']:03d}  mAP={r.get('mAP', 0):.2f}  "
+                  f"val_loss={r['best_val_loss']:.4f}  epoch={r['best_epoch']}")
 
     # final summary
-    sorted_results = sorted(results, key=lambda r: r["best_val_loss"])
+    sorted_results = sorted(results, key=lambda r: r.get("mAP", 0), reverse=True)
     print(f"\n{'='*60}")
     print(f"  Search complete — {len(results)} trials")
     print(f"  Best: trial={sorted_results[0]['trial']:03d}  "
+          f"mAP={sorted_results[0].get('mAP', 0):.2f}  "
           f"val_loss={sorted_results[0]['best_val_loss']:.4f}")
     print(f"  Results: {exp_folder}")
     print(f"{'='*60}")
@@ -456,12 +612,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Hyperparameter search for TriDet model")
     parser.add_argument("config", help="path to base config YAML")
-    parser.add_argument("--trials", default=30, type=int,
+    parser.add_argument("--trials", default=0, type=int,
                         help="number of random trials (0 = use --grid for grid search)")
     parser.add_argument("--limit", default=-1, type=int,
                         help="limit to first N trials (-1 = all)")
-    parser.add_argument("--max-epochs", default=-1, type=int,
-                        help="training epochs per trial, -1 uses config value")
+    parser.add_argument("--max-epochs", default=50, type=int,
+                        help="training epochs per trial")
     parser.add_argument("--step", default=5, type=int,
                         help="validation check every N epochs")
     parser.add_argument("--val-ratio", default=0.1, type=float,
@@ -473,12 +629,16 @@ if __name__ == "__main__":
     parser.add_argument("--print-freq", default=10, type=int,
                         help="print frequency in iterations")
     parser.add_argument("--grid", action="append", default=[],
-                        help="grid search entry: 'param:val1,val2,...' (repeatable)")
+                        help="grid entry: 'param:val1,val2,...' or 'param:lo,hi,log|linear,N' (repeatable)")
     parser.add_argument("--tune", default="", type=str,
                         help="comma-separated param names to restrict search (others use config defaults)")
     parser.add_argument("--preset", default="", type=str,
-                        help="use a named preset space: sgp|detection|attention|optimization|capacity|noise")
+                        help="use a named preset space: sgp|detection|architecture|optimization|capacity|noise")
+    parser.add_argument("--search-config", default="", type=str,
+                        help="load search space from YAML file (overrides --preset)")
     parser.add_argument("--output", default="", type=str,
                         help="override output folder")
+    parser.add_argument("--amp", action="store_true", default=False,
+                        help="enable automatic mixed precision training")
     args = parser.parse_args()
     main(args)
