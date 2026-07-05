@@ -66,13 +66,13 @@ model: {
   tal_start_epoch: 5,        # TAL 启动 epoch (0-indexed, 即第 6 个 epoch 开始)
 }
 opt: {
-  learning_rate: 0.0004,
+  learning_rate: 0.0001,
   warmup_epochs: 20,
   epochs: 60,
   weight_decay: 0.025,
 }
 loader: {
-  batch_size: 8,
+  batch_size: 2,
   num_workers: 4,
 }
 train_cfg: {

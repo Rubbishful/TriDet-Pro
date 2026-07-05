@@ -34,13 +34,13 @@ model: {
   att_kernel_size: 3,
 }
 opt: {
-  learning_rate: 0.0002,
+  learning_rate: 0.0001,
   warmup_epochs: 20,
   epochs: 50,
   weight_decay: 0.025,
 }
 loader: {
-  batch_size: 4,
+  batch_size: 2,
   num_workers: 4,
 }
 train_cfg: {

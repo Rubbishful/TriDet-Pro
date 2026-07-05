@@ -71,7 +71,7 @@ model:
     duration_thresh: 0.05
     ext_score_file: null
 opt:
-  learning_rate: 0.0004
+  learning_rate: 0.0001
   warmup_epochs: 20
   epochs: 20
   weight_decay: 0.025
@@ -83,7 +83,7 @@ opt:
   schedule_steps: []
   schedule_gamma: 0.1
 loader:
-  batch_size: 8
+  batch_size: 2
   num_workers: 0
 train_cfg: *id001
 test_cfg: *id002
