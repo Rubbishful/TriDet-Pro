@@ -3,13 +3,19 @@ End-to-end video action detection pipeline
 ==========================================
 Video -> OpenCV frame extraction -> Optical flow -> I3D features (2048-dim)
       -> TriDet model (GPU) -> C NMS -> Detection results TXT
+      -> [optional] YOLO person detection + annotated video output
 
 Usage:
     python scripts/full_pipeline.py \
         --video id3shuju/shipin/01.mp4 \
         --config configs/id3_i3d.yaml \
-        --ckpt epoch_039.pth.tar \
+        --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
         --output_dir result
+
+    # With annotated video output:
+    python scripts/full_pipeline.py \
+        --video id3shuju/shipin/01.mp4 \
+        --visualize
 """
 
 import argparse
@@ -33,6 +39,10 @@ from E2E.loader import load_frames_from_video
 from E2E.flow import compute_optical_flow
 from E2E.features import build_windows, load_i3d_model, extract_features_for_video
 from E2E.inference import run_tridet_inference, save_results_txt, THUMOS14_LABEL_NAMES
+from E2E.visualizer import (
+    create_annotated_video,
+    predictions_to_action_list,
+)
 
 
 def _resolve_path(path, base_dir=_PROJ_ROOT):
@@ -67,7 +77,7 @@ def main():
                         help="Input video path")
     parser.add_argument("--config", type=str, default="configs/id3_i3d.yaml",
                         help="TriDet config file")
-    parser.add_argument("--ckpt", type=str, default="epoch_039.pth.tar",
+    parser.add_argument("--ckpt", type=str, default="ckpt/thumos_i3d_baseline/epoch_039.pth.tar",
                         help="TriDet model checkpoint")
     parser.add_argument("--output_dir", type=str, default="result",
                         help="Output directory for results")
@@ -91,6 +101,17 @@ def main():
                         help="I3D feature extraction batch size")
     parser.add_argument("--save_npy", action="store_true", default=False,
                         help="Also save intermediate .npy feature file")
+
+    # Visualization / YOLO options
+    viz_group = parser.add_argument_group("Visualization (optional)")
+    viz_group.add_argument("--visualize", action="store_true", default=False,
+                        help="Generate annotated video with YOLO boxes + action labels")
+    viz_group.add_argument("--yolo_model", type=str, default="E2E/model/yolov8n.pt",
+                        help="YOLO model name or path (default: E2E/model/yolov8n.pt)")
+    viz_group.add_argument("--yolo_conf", type=float, default=0.3,
+                        help="YOLO confidence threshold (default: 0.3)")
+    viz_group.add_argument("--no_timeline", action="store_true", default=False,
+                        help="Disable the bottom timeline strip in output video")
 
     args = parser.parse_args()
 
@@ -125,8 +146,11 @@ def main():
     # ========================================================================
     # Step 1: Frame extraction (OpenCV)
     # ========================================================================
+    total_steps = 7 if args.visualize else 5
+    step_str = lambda s: f"[Step {s}/{total_steps}]"
+
     print("\n" + "=" * 60)
-    print("[Step 1/5] OpenCV Frame Extraction")
+    print(f"{step_str(1)} OpenCV Frame Extraction")
     print("=" * 60)
     t1 = time.time()
 
@@ -155,7 +179,7 @@ def main():
     # Step 2: Optical flow (Farneback)
     # ========================================================================
     print("\n" + "=" * 60)
-    print("[Step 2/5] Optical Flow Computation (Farneback)")
+    print(f"{step_str(2)} Optical Flow Computation (Farneback)")
     print("=" * 60)
     t2 = time.time()
 
@@ -169,7 +193,7 @@ def main():
     # Step 3: I3D feature extraction (2048-dim = RGB 1024 + Flow 1024)
     # ========================================================================
     print("\n" + "=" * 60)
-    print("[Step 3/5] I3D Feature Extraction (RGB + Flow -> 2048-dim)")
+    print(f"{step_str(3)} I3D Feature Extraction (RGB + Flow -> 2048-dim)")
     print("=" * 60)
     t3 = time.time()
 
@@ -232,7 +256,7 @@ def main():
     # Step 4: TriDet model inference + C NMS
     # ========================================================================
     print("\n" + "=" * 60)
-    print("[Step 4/5] TriDet Model Inference + C NMS")
+    print(f"{step_str(4)} TriDet Model Inference + C NMS")
     print("=" * 60)
     t4 = time.time()
 
@@ -307,10 +331,49 @@ def main():
     # Step 5: Save results TXT
     # ========================================================================
     print("\n" + "=" * 60)
-    print("[Step 5/5] Save Detection Results")
+    print(f"{step_str(5)} Save Detection Results")
     print("=" * 60)
 
     save_results_txt(results, output_dir)
+
+    # ========================================================================
+    # Step 6-7: YOLO + Annotated Video (optional)
+    # ========================================================================
+    if args.visualize:
+        # --- Step 6: YOLO person detection ---
+        print("\n" + "=" * 60)
+        print(f"{step_str(6)} YOLO Person Detection + Annotated Video")
+        print("=" * 60)
+        t6 = time.time()
+
+        from libs.subject.detector import SubjectDetector
+
+        print(f"[YOLO] Loading model: {args.yolo_model}")
+        detector = SubjectDetector(model_name=args.yolo_model, device=str(device))
+
+        # Convert TriDet results to flat action list
+        action_list = predictions_to_action_list(results, THUMOS14_LABEL_NAMES)
+        print(f"[YOLO] Action segments to visualize: {len(action_list)}")
+
+        # Output video path
+        output_video_path = os.path.join(output_dir, f"{vid_name}_annotated.mp4")
+
+        print(f"[YOLO] Source: {video_path}")
+        print(f"[YOLO] Output: {output_video_path}")
+        print(f"[YOLO] Native FPS={native_fps:.2f}, "
+              f"conf_threshold={args.yolo_conf}")
+
+        create_annotated_video(
+            video_path=video_path,
+            output_path=output_video_path,
+            action_results=action_list,
+            detector=detector,
+            conf_threshold=args.yolo_conf,
+            show_timeline=not args.no_timeline,
+            progress=True,
+        )
+
+        print(f"         Done in {time.time() - t6:.1f}s")
 
     overall_end = time.time()
     print("\n" + "=" * 60)
@@ -319,7 +382,11 @@ def main():
     print(f"  Total time: {overall_end - overall_start:.1f}s")
     print(f"  Output directory: {os.path.abspath(output_dir)}")
 
-    # Print detection summary
+    if args.visualize:
+        output_video_path = os.path.join(output_dir, f"{vid_name}_annotated.mp4")
+        if os.path.exists(output_video_path):
+            size_mb = os.path.getsize(output_video_path) / (1024 * 1024)
+            print(f"  Annotated video:  {os.path.abspath(output_video_path)}  ({size_mb:.1f} MB)")
     for r in results:
         segs = r["segments"].cpu().numpy()
         scores = r["scores"].cpu().numpy()
