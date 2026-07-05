@@ -29,24 +29,28 @@ TriDet-Pro/
 │   ├── datasets/               # 数据集加载
 │   ├── subject/                # 主体检测与跟踪 (YOLO + SORT)
 │   └── utils/                  # NMS、评估指标、训练工具
-├── E2E/                        # 端到端特征提取与推理模块
-│   ├── __init__.py             # 公共 API 导出
-│   ├── i3d.py                  # InceptionI3D 模型定义
-│   ├── loader.py               # 帧加载工具 (视频/目录/单帧)
-│   ├── flow.py                 # Farneback 光流计算
-│   ├── features.py             # I3D 特征提取核心
-│   ├── inference.py            # TriDet 推理 + 结果保存
-│   └── model/                  # I3D 预训练权重存放目录
+├── E2E/                        # 端到端检测流水线（脚本 + 模块）
+│   ├── full_pipeline.py        # 单视频端到端流水线
+│   ├── batch_pipeline.py       # 批量视频处理流水线
+│   ├── extract_features.py     # I3D 特征提取脚本
+│   ├── run.sh                  # Conda 环境激活包装器
+│   ├── model/                  # I3D/YOLO 预训练权重存放目录
+│   └── module/                 # 后端模块
+│       ├── __init__.py         # 公共 API 导出
+│       ├── i3d.py              # InceptionI3D 模型定义
+│       ├── loader.py           # 帧加载工具 (视频/目录/单帧)
+│       ├── flow.py             # Farneback 光流计算
+│       ├── features.py         # I3D 特征提取核心
+│       ├── inference.py        # TriDet 推理 + 结果保存
+│       └── visualizer.py       # 检测结果可视化
 ├── data/                       # 数据集 (标注 + 特征文件)
 │   ├── id3_2048/               # 自定义数据集
 │   ├── thumos/                 # THUMOS14
 │   ├── anet/                   # ActivityNet
 │   ├── hacs/                   # HACS
 │   └── epic_kitchens/          # EPIC-Kitchens
+├── tests/                      # 覆盖测试脚本
 ├── tools/                      # 一键训练+评估脚本
-├── scripts/                    # CLI 入口脚本 (调用 E2E/lib 模块)
-│   ├── extract_features.py     # I3D 特征提取
-│   └── full_pipeline.py        # 端到端检测流水线
 ├── doc/                        # 项目文档
 ├── log/                        # 训练/评估日志
 ├── ckpt/                       # 模型权重（不纳入 Git）
@@ -307,14 +311,14 @@ python visualize.py --pkl ./ckpt/anet_tsp_baseline/eval_results.pkl --video-id s
 
 ```bash
 # 完整的端到端流水线
-python scripts/full_pipeline.py \
+python E2E/full_pipeline.py \
     --video ./data/your_video.mp4 \
     --config configs/id3_i3d.yaml \
     --ckpt epoch_039.pth.tar \
     --output_dir ./result
 
 # 单独提取 I3D 特征 (不运行 TriDet)
-python scripts/extract_features.py \
+python E2E/extract_features.py \
     --video_path ./data/your_video.mp4 \
     --output_dir ./data/id3_2048 \
     --mode rgb+flow
