@@ -34,11 +34,17 @@ class MaskedConv1D(nn.Module):
         if bias:
             torch.nn.init.constant_(self.conv.bias, 0.)
 
-    def forward(self, x, mask):
-        # x: batch size, feature channel, sequence length,
-        # mask: batch size, 1, sequence length (bool)
+    def forward(self, x: torch.Tensor, mask: torch.Tensor):
+        """
+        Args:
+            x: (B, C_in, T) 输入特征
+            mask: (B, 1, T) 有效位置的 bool mask, True=有效
+        Returns:
+            Tuple[Tensor, Tensor]:
+                out_conv: (B, C_out, T//stride) 卷积输出，无效位置已归零
+                out_mask: (B, 1, T//stride) 降采样后的 bool mask
+        """
         B, C, T = x.size()
-        # input length must be divisible by stride
         assert T % self.stride == 0
 
         # conv
@@ -159,7 +165,16 @@ class ConvBlock(nn.Module):
 
         self.act = act_layer()
 
-    def forward(self, x, mask):
+    def forward(self, x: torch.Tensor, mask: torch.Tensor):
+        """
+        Args:
+            x: (B, C, T) 输入特征，C=n_embd
+            mask: (B, 1, T) 有效位置 bool mask
+        Returns:
+            Tuple[Tensor, Tensor]:
+                out: (B, C, T//stride) 残差连接后的输出
+                out_mask: (B, 1, T//stride) 降采样后的 bool mask
+        """
         identity = x
         out, out_mask = self.conv1(x, mask)
         out = self.act(out)
@@ -274,8 +289,26 @@ class SGPBlock(nn.Module):
         torch.nn.init.constant_(self.convkw.bias, 0)
         torch.nn.init.constant_(self.global_fc.bias, 0)
 
-    def forward(self, x, mask):
-        # X shape: B, C, T
+    def forward(self, x: torch.Tensor, mask: torch.Tensor):
+        """Sparse Global Perception Block 的前向传播。
+
+        五个分支的数学表达:
+            out = fc * phi + (convw + convkw) * psi + x
+        其中:
+            psi   = depthwise_conv_k3(x)   — 即时局部特征
+            fc    = pointwise_conv_1x1(x)  — 逐通道变换
+            convw = depthwise_conv_k3(x)   — 局部窗口上下文
+            convkw = depthwise_conv_k_up(x)— 大窗口上下文（kernel_size 受 k 参数放大）
+            phi   = relu(pointwise_1x1(avgpool(x))) — 全局通道门控
+
+        Args:
+            x: (B, C, T) 输入特征, C=n_embd
+            mask: (B, 1, T) 有效位置 bool mask
+        Returns:
+            Tuple[Tensor, Tensor]:
+                out: (B, C, T//stride) 经 SGP 增强 + FFN 后的特征
+                out_mask: (B, 1, T//stride) 降采样后 bool mask
+        """
         B, C, T = x.shape
         x = self.downsample(x)
         out_mask = F.interpolate(

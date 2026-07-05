@@ -1,4 +1,3 @@
-import os
 import torch
 from .data_utils import trivial_batch_collator, worker_init_reset_seed
 
@@ -29,6 +28,6 @@ def make_data_loader(dataset, is_training, generator, batch_size, num_workers):
         shuffle=is_training,
         drop_last=is_training,
         generator=generator,
-        persistent_workers=True
+        persistent_workers=(num_workers > 0)
     )
     return loader

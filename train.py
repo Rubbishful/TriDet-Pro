@@ -33,8 +33,7 @@ def main(args):
     pprint(cfg)
 
     # prep for output folder (based on time stamp)
-    if not os.path.exists(cfg['output_folder']):
-        os.mkdir(cfg['output_folder'])
+    os.makedirs(cfg['output_folder'], exist_ok=True)
     cfg_filename = os.path.basename(args.config).replace('.yaml', '')
     if len(args.output) == 0:
         ts = datetime.datetime.fromtimestamp(int(time.time()))
@@ -43,8 +42,7 @@ def main(args):
     else:
         ckpt_folder = os.path.join(
             cfg['output_folder'], cfg_filename + '_' + str(args.output))
-    if not os.path.exists(ckpt_folder):
-        os.mkdir(ckpt_folder)
+    os.makedirs(ckpt_folder, exist_ok=True)
 
     # fix the random seeds (this will fix everything)
     rng_generator = fix_random_seed(cfg['init_rand_seed'], include_cuda=True)

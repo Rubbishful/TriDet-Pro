@@ -57,7 +57,20 @@ class FPN1D(nn.Module):
             self.fpn_norms.append(fpn_norm)
 
     def forward(self, inputs, fpn_masks):
-        # inputs must be a list / tuple
+        """FPN 自上而下多尺度融合。
+
+        流程:
+            1. lateral_convs: 各层 1x1 conv 对齐通道到 out_channel
+            2. top-down: 从高层向低层逐层最近邻上采样相加
+            3. fpn_convs: 融合后过 depthwise conv 3x3 + LayerNorm
+
+        Args:
+            inputs: Tuple[L] of (B, C_in[i], T_i) 骨干输出金字塔
+            fpn_masks: Tuple[L] of (B, 1, T_i) 对应 mask
+        Returns:
+            fpn_feats: Tuple[used_levels] of (B, out_channel, T_i) 融合后特征
+            fpn_masks: 原样返回
+        """
         assert len(inputs) == len(self.in_channels)
         assert len(fpn_masks) ==  len(self.in_channels)
 
@@ -126,7 +139,17 @@ class FPNIdentity(nn.Module):
             self.fpn_norms.append(fpn_norm)
 
     def forward(self, inputs, fpn_masks):
-        # inputs must be a list / tuple
+        """恒等映射 Neck（仅 LayerNorm，不做跨层融合）。
+
+        THUMOS14 默认配置使用此 neck，因为 SGP 骨干的多尺度特征已足够判别。
+
+        Args:
+            inputs: Tuple[L] of (B, C_in[i], T_i), 要求 C_in[i] == out_channel
+            fpn_masks: Tuple[L] of (B, 1, T_i)
+        Returns:
+            fpn_feats: Tuple[used_levels] of (B, out_channel, T_i) 仅过 LayerNorm
+            fpn_masks: 原样返回
+        """
         assert len(inputs) == len(self.in_channels)
         assert len(fpn_masks) ==  len(self.in_channels)
 

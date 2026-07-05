@@ -65,7 +65,7 @@ DEFAULTS = {
         # kernel size for reg/cls/center heads
         "head_kernel_size": 3,
         # kernel size for boundary heads
-        "boudary_kernel_size": 3,
+        "boundary_kernel_size": 3,
         # number of layers in the head (including the final one)
         "head_num_layers": 3,
         # if attach group norm to heads
@@ -95,6 +95,7 @@ DEFAULTS = {
         "center_sample": "radius",
         "center_sample_radius": 1.5,
         "loss_weight": 1.0,  # on reg_loss, use -1 to enable auto balancing
+        "loss_type": 'diou',  # regression loss: 'diou' | 'giou'
         "cls_prior_prob": 0.01,
         "init_loss_norm": 2000,
         # gradient cliping, not needed for pre-LN transformer

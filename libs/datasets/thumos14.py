@@ -33,7 +33,7 @@ class THUMOS14Dataset(Dataset):
         # file path
         assert os.path.exists(feat_folder) and os.path.exists(json_file)
         assert isinstance(split, tuple) or isinstance(split, list)
-        assert crop_ratio == None or len(crop_ratio) == 2
+        assert crop_ratio is None or len(crop_ratio) == 2
         self.feat_folder = feat_folder
         if file_prefix is not None:
             self.file_prefix = file_prefix
@@ -89,7 +89,7 @@ class THUMOS14Dataset(Dataset):
                     label_dict[act['label']] = act['label_id']
 
         # fill in the db (immutable afterwards)
-        dict_db = tuple()
+        dict_db = []
         for key, value in json_db.items():
             # skip the video if not in the split
             if value['subset'].lower() not in self.split:
@@ -128,22 +128,32 @@ class THUMOS14Dataset(Dataset):
             else:
                 segments = None
                 labels = None
-            dict_db += ({'id': key,
+            dict_db.append({'id': key,
                          'fps' : fps,
                          'duration' : duration,
                          'segments' : segments,
                          'labels' : labels
             }, )
 
-        return dict_db, label_dict
+        return tuple(dict_db), label_dict
 
     def __len__(self):
         return len(self.data_list)
 
     def __getitem__(self, idx):
-        # directly return a (truncated) data point (so it is very fast!)
-        # auto batching will be disabled in the subsequent dataloader
-        # instead the model will need to decide how to batch / preporcess the data
+        """返回单个视频的预提取特征与标注。
+
+        Returns:
+            dict:
+                video_id (str): 视频文件名（无后缀）
+                feats (Tensor): (C=input_dim, T) 预提取 I3D 特征
+                segments (Tensor or None): (N, 2) GT 动作段 [start, end]，以特征网格为单位
+                labels (Tensor or None): (N,) GT 类别索引
+                fps (float): 视频帧率
+                duration (float): 视频时长（秒）
+                feat_stride (int): 特征帧采样间隔
+                feat_num_frames (int): 每特征帧覆盖的原始帧数
+        """
         video_item = self.data_list[idx]
 
         # load features

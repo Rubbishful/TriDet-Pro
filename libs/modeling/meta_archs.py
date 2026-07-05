@@ -77,9 +77,16 @@ class ClsHead(nn.Module):
                 torch.nn.init.constant_(self.cls_head.conv.bias[idx], bias_value)
 
     def forward(self, fpn_feats, fpn_masks):
+        """对 FPN 各层特征逐时间位置做分类预测。
+
+        Args:
+            fpn_feats: Tuple[L] of (B, fpn_dim, T_i) FPN 输出特征
+            fpn_masks: Tuple[L] of (B, 1, T_i) 对应 mask
+        Returns:
+            out_logits: Tuple[L] of (B, num_classes, T_i) 分类 logits（未经 sigmoid）
+        """
         assert len(fpn_feats) == len(fpn_masks)
 
-        # apply the classifier for each pyramid level
         out_logits = tuple()
         for _, (cur_feat, cur_mask) in enumerate(zip(fpn_feats, fpn_masks)):
             if self.detach_feat:
@@ -92,7 +99,6 @@ class ClsHead(nn.Module):
             cur_logits, _ = self.cls_head(cur_out, cur_mask)
             out_logits += (cur_logits,)
 
-        # fpn_masks remains the same
         return out_logits
 
 
@@ -152,6 +158,15 @@ class RegHead(nn.Module):
         )
 
     def forward(self, fpn_feats, fpn_masks):
+        """
+        Args:
+            fpn_feats: Tuple[L] of (B, fpn_dim, T_i) FPN 输出特征
+            fpn_masks: Tuple[L] of (B, 1, T_i) 对应 mask
+        Returns:
+            out_offsets: Tuple[L] of (B, 2*(num_bins+1), T_i)
+                如果 use_trident_head=True, 输出 2*(num_bins+1)=34 通道（左右各17个bin）
+                如果 use_trident_head=False, num_bins=0, 输出 2 通道（直接回归左右偏移量）
+        """
         assert len(fpn_feats) == len(fpn_masks)
         assert len(fpn_feats) == self.fpn_levels
 
@@ -195,7 +210,7 @@ class TriDet(nn.Module):
             regression_range,  # regression range on each level of FPN
             head_num_layers,  # number of layers in the head (including the classifier)
             head_kernel_size,  # kernel size for reg/cls heads
-            boudary_kernel_size,  # kernel size for boundary heads
+            boundary_kernel_size,  # kernel size for boundary heads
             head_with_ln,  # attache layernorm to reg/cls heads
             use_abs_pe,  # if to use abs position encoding
             num_bins,  # the bin number in Trident-head (exclude 0)
@@ -242,6 +257,7 @@ class TriDet(nn.Module):
         assert self.train_center_sample in ['radius', 'none']
         self.train_center_sample_radius = train_cfg['center_sample_radius']
         self.train_loss_weight = train_cfg['loss_weight']
+        self.train_loss_type = train_cfg.get('loss_type', 'diou')
         self.train_cls_prior_prob = train_cfg['cls_prior_prob']
         self.train_dropout = train_cfg['dropout']
         self.train_droppath = train_cfg['droppath']
@@ -335,7 +351,7 @@ class TriDet(nn.Module):
         if use_trident_head:
             self.start_head = ClsHead(
                 fpn_dim, head_dim, self.num_classes,
-                kernel_size=boudary_kernel_size,
+                kernel_size=boundary_kernel_size,
                 prior_prob=self.train_cls_prior_prob,
                 with_ln=head_with_ln,
                 num_layers=head_num_layers,
@@ -344,7 +360,7 @@ class TriDet(nn.Module):
             )
             self.end_head = ClsHead(
                 fpn_dim, head_dim, self.num_classes,
-                kernel_size=boudary_kernel_size,
+                kernel_size=boundary_kernel_size,
                 prior_prob=self.train_cls_prior_prob,
                 with_ln=head_with_ln,
                 num_layers=head_num_layers,
@@ -380,10 +396,19 @@ class TriDet(nn.Module):
         return list(set(p.device for p in self.parameters()))[0]
 
     def decode_offset(self, out_offsets, pred_start_neighbours, pred_end_neighbours):
-        # decode the offset value from the network output
-        # If a normal regression head is used, the offsets is predicted directly in the out_offsets.
-        # If the Trident-head is used, the predicted offset is calculated using the value from
-        # center offset head (out_offsets), start boundary head (pred_left) and end boundary head (pred_right)
+        """解码网络输出为时序偏移量 (left_offset, right_offset)。
+
+        普通回归头: out_offsets 直接就是偏移量。
+        Trident-head: 将边界分类得分离散化后与中心偏移相加，通过 softmax 加权求和
+        得到期望偏移量（将连续回归转为 num_bins+1 分类问题）。
+
+        Args:
+            out_offsets: (B, T_all, 2*(num_bins+1)) 中心偏移输出
+            pred_start_neighbours: (B, T_all, num_classes, num_bins+1) 左边界分类得分
+            pred_end_neighbours: (B, T_all, num_classes, num_bins+1) 右边界分类得分
+        Returns:
+            decoded: (B, T_all, 2) 解码后的 (left_offset, right_offset)，已归一化到 stride 单位
+        """
 
         if not self.use_trident_head:
             if self.training:
@@ -424,7 +449,18 @@ class TriDet(nn.Module):
             return torch.cat([decoded_offset_left, decoded_offset_right], dim=-1)
 
     def forward(self, video_list):
-        # batch the video list into feats (B, C, T) and masks (B, 1, T)
+        """TriDet 主前向传播。
+
+        训练模式: preprocessing → backbone → neck → heads → label assignment → loss
+        推理模式: preprocessing → backbone → neck → heads → decode → NMS → results
+
+        Args:
+            video_list: List[dict], 每个 dict 包含:
+                feats (C,T), segments (N,2), labels (N), fps, duration 等
+        Returns:
+            训练: dict with {cls_loss, reg_loss, final_loss}
+            推理: List[dict], 每个 dict 包含 {video_id, segments, scores, labels}
+        """
         t_net_start = time.time()
         batched_inputs, batched_masks = self.preprocessing(video_list)
 
@@ -507,8 +543,17 @@ class TriDet(nn.Module):
 
     @torch.no_grad()
     def preprocessing(self, video_list, padding_val=0.0):
-        """
-            Generate batched features and masks from a list of dict items
+        """将变长视频特征列表批量为固定大小张量。
+
+        训练: 填充到 max_seq_len（要求所有视频 T <= max_seq_len）
+        推理: 支持超长视频，pad 到 max_div_factor 的倍数
+
+        Args:
+            video_list: List[dict], feats 字段为 (C, T_vary) 变长特征
+            padding_val: 填充值, 默认 0.0
+        Returns:
+            batched_inputs: (B, C, max_len) 批量特征
+            batched_masks: (B, 1, max_len) bool mask, True=有效位置
         """
         feats = [x['feats'] for x in video_list]
         feats_lens = torch.as_tensor([feat.shape[-1] for feat in feats])
@@ -569,9 +614,21 @@ class TriDet(nn.Module):
 
     @torch.no_grad()
     def label_points_single_video(self, concat_points, gt_segment, gt_label):
-        # concat_points : F T x 4 (t, regressoin range, stride)
-        # gt_segment : N (#Events) x 2
-        # gt_label : N (#Events) x 1
+        """为单个视频的每个 anchor 点分配分类标签和回归目标。
+
+        策略:
+            1. 中心采样 (radius): 点必须在 GT 段的中心半径范围内 (受 center_sample_radius 控制)
+            2. 回归范围限制: 点的回归范围必须覆盖该 GT 段
+            3. 最短时长冲突解决: 一个点同时属于多个 GT 时，分配给时长最短的那个
+
+        Args:
+            concat_points: (T_all, 4) 所有 FPN 层的 anchor 点拼接
+            gt_segment: (N, 2) GT 动作段 [start, end], 以特征网格为单位
+            gt_label: (N,) GT 类别索引
+        Returns:
+            cls_targets: (T_all, num_classes) 多热编码分类标签
+            reg_targets: (T_all, 2) 回归目标 (left_offset, right_offset), 已除以 stride
+        """
         num_pts = concat_points.shape[0]
         num_gts = gt_segment.shape[0]
 
@@ -657,9 +714,23 @@ class TriDet(nn.Module):
             gt_cls_labels, gt_offsets,
             out_start, out_end,
     ):
-        # fpn_masks, out_*: F (List) [B, T_i, C]
-        # gt_* : B (list) [F T, C]
-        # fpn_masks -> (B, FT)
+        """计算分类损失和回归损失。
+
+        分类: sigmoid_focal_loss，Trident-head 模式下用 IoU 分数加权容易度
+        回归: ctr_diou_loss_1d，仅在正样本点上计算
+
+        Args:
+            fpn_masks: Tuple[L] of (B, T_i) 每层的有效位置 mask
+            out_cls_logits: Tuple[L] of (B, T_i, num_classes) 分类 logits
+            out_offsets: Tuple[L] of (B, T_i, 2*(num_bins+1)) 偏移量
+            gt_cls_labels: List[B] of (T_all, num_classes) GT 分类标签
+            gt_offsets: List[B] of (T_all, 2) GT 回归目标
+            out_start: Tuple[L] of (B, T_i, num_classes) 左边界输出 (Trident-head)
+            out_end: Tuple[L] of (B, T_i, num_classes) 右边界输出 (Trident-head)
+        Returns:
+            dict: {cls_loss, reg_loss, final_loss}
+                final_loss = cls_loss + reg_loss * loss_weight
+        """
         valid_mask = torch.cat(fpn_masks, dim=1)
 
         if self.use_trident_head:
@@ -738,12 +809,19 @@ class TriDet(nn.Module):
         if num_pos == 0:
             reg_loss = 0 * pred_offsets.sum()
         else:
-            # giou loss defined on positive samples
-            reg_loss = ctr_diou_loss_1d(
-                pred_offsets,
-                gt_offsets,
-                reduction='sum'
-            )
+            # regression loss defined on positive samples
+            if self.train_loss_type == 'giou':
+                reg_loss = ctr_giou_loss_1d(
+                    pred_offsets,
+                    gt_offsets,
+                    reduction='sum'
+                )
+            else:
+                reg_loss = ctr_diou_loss_1d(
+                    pred_offsets,
+                    gt_offsets,
+                    reduction='sum'
+                )
             reg_loss /= self.loss_normalizer
 
         if self.train_loss_weight > 0:
@@ -822,8 +900,25 @@ class TriDet(nn.Module):
             out_offsets,
             lb_logits_per_vid, rb_logits_per_vid
     ):
-        # points F (list) [T_i, 4]
-        # fpn_masks, out_*: F (List) [T_i, C]
+        """对单视频做推理（不包含 NMS 后处理）。
+
+        对每个 FPN 层:
+            1. 按置信度阈值 (pre_nms_thresh) + topk 过滤候选
+            2. 解码偏移量 → 还原为时间线段
+            3. 按最短时长阈值过滤过短候选
+            4. 拼接所有 FPN 层的候选
+
+        Args:
+            points: Tuple[L] of (T_i, 4) anchor 点
+            fpn_masks: Tuple[L] of (T_i,) 有效位置 mask
+            out_cls_logits: Tuple[L] of (T_i, num_classes) 分类 logits
+            out_offsets: Tuple[L] of (T_i, 2*(num_bins+1)) 偏移量
+            lb_logits_per_vid: Tuple[L] of (T_i, num_classes) 左边界
+            rb_logits_per_vid: Tuple[L] of (T_i, num_classes) 右边界
+        Returns:
+            dict: {segments: (N, 2), scores: (N,), labels: (N,)}
+                以特征网格为单位的原始预测
+        """
         segs_all = []
         scores_all = []
         cls_idxs_all = []
@@ -910,8 +1005,17 @@ class TriDet(nn.Module):
 
     @torch.no_grad()
     def postprocessing(self, results):
-        # input : list of dictionary items
-        # (1) push to CPU; (2) NMS; (3) convert to actual time stamps
+        """后处理: CPU 转移 → NMS 去重 → 特征网格坐标转换为秒。
+
+        NMS 参数由 test_cfg 控制: iou_threshold, min_score, max_seg_num,
+        nms_method ('soft'|'hard'|'none'), sigma, voting_thresh.
+
+        Args:
+            results: List[dict], 每个 dict 包含 {segments, scores, labels, ...}
+                坐标以特征网格为单位
+        Returns:
+            processed_results: List[dict], {video_id, segments (秒), scores, labels}
+        """
         processed_results = []
         for results_per_vid in results:
             # unpack the meta info

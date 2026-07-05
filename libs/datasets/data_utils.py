@@ -2,7 +2,6 @@ import os
 import copy
 import random
 import numpy as np
-import random
 import torch
 
 
@@ -49,7 +48,7 @@ def truncate_feats(
     # seq_len < max_seq_len
     if feat_len <= max_seq_len:
         # do nothing
-        if crop_ratio == None:
+        if crop_ratio is None:
             return data_dict
         # randomly crop the seq by setting max_seq_len to a value in [l, r]
         else:

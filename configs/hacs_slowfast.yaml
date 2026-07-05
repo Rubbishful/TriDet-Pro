@@ -26,7 +26,7 @@ model: {
   fpn_dim: 1024,
   head_dim: 1024,
   head_kernel_size: 5,
-  boudary_kernel_size: 1,
+  boundary_kernel_size: 1,
   use_abs_pe: True,
   num_bins: 14,
   iou_weight_power: 1,

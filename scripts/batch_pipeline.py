@@ -10,9 +10,9 @@ Workflow:
 
 Usage:
   python scripts/batch_pipeline.py \
-      --video_dir ./input_videos \
-      --output_dir ./pipeline_output \
-      --checkpoint ./epoch_039.pth.tar \
+      --video_dir ./data/videos\ \
+      --output_dir ./result/ \
+      --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
       --device cuda:0
 
 Output:
@@ -53,6 +53,10 @@ from E2E.features import (
 )
 from E2E.flow import compute_optical_flow
 from E2E.loader import load_frames_from_video
+from E2E.visualizer import (
+    create_annotated_video,
+    filter_actions_by_video,
+)
 from libs.core import load_config
 from libs.datasets import make_data_loader, make_dataset
 from libs.modeling import make_meta_arch
@@ -104,7 +108,7 @@ def extract_features_for_videos(video_dir, output_dir, args):
             will be written.
         args: Parsed command-line arguments (argparse.Namespace). Expected
             attributes: device, rgb_model, flow_model, frame_width,
-            frame_height, video_fps, num_frames, feat_stride, sample_mode,
+            frame_height, target_fps, num_frames, feat_stride, sample_mode,
             crop_size, batch_size, overwrite.
 
     Returns:
@@ -161,8 +165,8 @@ def extract_features_for_videos(video_dir, output_dir, args):
             # Load info from existing npy
             existing = np.load(npy_path)
             video_meta[video_id] = {
-                "fps": args.video_fps,
-                "duration": existing.shape[0] * args.feat_stride / args.video_fps,
+                "fps": args.target_fps,
+                "duration": existing.shape[0] * args.feat_stride / args.target_fps,
                 "total_frames": existing.shape[0] * args.feat_stride,
                 "num_windows": existing.shape[0],
             }
@@ -173,7 +177,7 @@ def extract_features_for_videos(video_dir, output_dir, args):
         try:
             # Load frames
             frames, actual_fps = load_frames_from_video(
-                video_path, target_fps=args.video_fps, target_size=target_size
+                video_path, target_fps=args.target_fps, target_size=target_size
             )
             total_frames = frames.shape[0]
 
@@ -233,7 +237,7 @@ def extract_features_for_videos(video_dir, output_dir, args):
             "num_frames": args.num_frames,
             "crop_size": args.crop_size,
             "sample_mode": args.sample_mode,
-            "video_fps": args.video_fps,
+            "video_fps": args.target_fps,
         },
         "videos": video_meta,
     }
@@ -572,18 +576,18 @@ Examples:
   python scripts/batch_pipeline.py \\
       --video_dir ./my_videos \\
       --output_dir ./pipeline_output \\
-      --checkpoint ./epoch_039.pth.tar
+      --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar
 
   # With custom model weights
   python scripts/batch_pipeline.py \\
-      --video_dir D:/videos \\
-      --output_dir D:/results \\
-      --checkpoint ./epoch_039.pth.tar \\
+      --video_dir ./videos \\
+      --output_dir ./results \\
+      --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \\
       --rgb_model E2E/model/rgb_imagenet.pt \\
       --flow_model E2E/model/flow_imagenet.pt
 
 Input format:
-  python scripts/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --checkpoint <weights>
+  python scripts/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --ckpt <weights>
         """
     )
 
@@ -592,7 +596,7 @@ Input format:
                         help="Path to the input video folder")
     parser.add_argument("--output_dir", type=str, required=True,
                         help="Path to the output folder")
-    parser.add_argument("--checkpoint", type=str, required=True,
+    parser.add_argument("--ckpt", type=str, default="ckpt/thumos_i3d_baseline/epoch_039.pth.tar",
                         help="Path to the TriDet checkpoint .pth.tar file")
 
     # Feature extraction options
@@ -608,7 +612,7 @@ Input format:
     feat_group.add_argument("--crop_size", type=int, default=224)
     feat_group.add_argument("--sample_mode", type=str, default="center_crop",
                             choices=["center_crop", "resize"])
-    feat_group.add_argument("--video_fps", type=int, default=25)
+    feat_group.add_argument("--target_fps", type=int, default=25)
     feat_group.add_argument("--frame_width", type=int, default=340)
     feat_group.add_argument("--frame_height", type=int, default=256)
 
@@ -629,6 +633,17 @@ Input format:
     parser.add_argument("--skip_feature_extraction", action="store_true", default=False,
                         help="Skip feature extraction (use existing .npy files)")
 
+    # Visualization / YOLO options
+    viz_group = parser.add_argument_group("Visualization (optional)")
+    viz_group.add_argument("--visualize", action="store_true", default=False,
+                        help="Generate annotated videos with YOLO boxes + action labels")
+    viz_group.add_argument("--yolo_model", type=str, default="E2E/model/yolov8n.pt",
+                        help="YOLO model name or path (default: E2E/model/yolov8n.pt)")
+    viz_group.add_argument("--yolo_conf", type=float, default=0.3,
+                        help="YOLO confidence threshold (default: 0.3)")
+    viz_group.add_argument("--no_timeline", action="store_true", default=False,
+                        help="Disable the bottom timeline strip in output video")
+
     args = parser.parse_args()
 
     # Resolve paths
@@ -641,8 +656,8 @@ Input format:
     if not os.path.isdir(video_dir):
         print(f"[ERROR] Video directory not found: {video_dir}")
         sys.exit(1)
-    if not args.skip_feature_extraction and not os.path.isfile(args.checkpoint):
-        print(f"[ERROR] Checkpoint not found: {args.checkpoint}")
+    if not args.skip_feature_extraction and not os.path.isfile(args.ckpt):
+        print(f"[ERROR] Checkpoint not found: {args.ckpt}")
         sys.exit(1)
 
     print("=" * 60)
@@ -650,7 +665,7 @@ Input format:
     print("=" * 60)
     print(f"  Video dir:   {video_dir}")
     print(f"  Output dir:  {output_dir}")
-    print(f"  Checkpoint:  {args.checkpoint}")
+    print(f"  Checkpoint:  {args.ckpt}")
     print(f"  Device:      {args.device}")
 
     # Step 1: Feature Extraction
@@ -681,13 +696,71 @@ Input format:
     t2 = time.time()
 
     # Step 3: TriDet Inference
-    predictions = run_tridet_inference(config_path, args.checkpoint, output_dir, args.device)
+    predictions = run_tridet_inference(config_path, args.ckpt, output_dir, args.device)
     t3 = time.time()
 
     # Step 4: Export
     csv_path = export_results(predictions, video_meta, output_dir,
                               top_k=args.top_k, min_score=args.min_score)
     t4 = time.time()
+
+    # ========================================================================
+    # Step 5: YOLO + Annotated Videos (optional)
+    # ========================================================================
+    t5 = t4
+    if args.visualize:
+        print(f"\n{'='*60}")
+        print(f"  Step 5: YOLO Person Detection + Annotated Videos")
+        print(f"{'='*60}")
+        t5_start = time.time()
+
+        from libs.subject.detector import SubjectDetector
+
+        print(f"[YOLO] Loading model: {args.yolo_model}")
+        detector = SubjectDetector(model_name=args.yolo_model, device=args.device)
+
+        n_done = 0
+        for video_id in sorted(video_meta.keys()):
+            # Find original video file
+            video_path = None
+            VIDEO_EXTS = (".mp4", ".avi", ".mkv", ".mov", ".webm", ".MP4", ".AVI", ".MKV", ".MOV")
+            for ext in VIDEO_EXTS:
+                candidate = os.path.join(video_dir, f"{video_id}{ext}")
+                if os.path.isfile(candidate):
+                    video_path = candidate
+                    break
+            if video_path is None:
+                print(f"  [SKIP] {video_id}: video file not found in {video_dir}")
+                continue
+
+            # Get actions for this video
+            actions = filter_actions_by_video(
+                [], predictions, video_id, LABEL_MAP
+            )
+            if not actions:
+                print(f"  [SKIP] {video_id}: no action detections")
+                continue
+
+            output_video_path = os.path.join(output_dir, f"{video_id}_annotated.mp4")
+            print(f"  [{n_done+1}/{len(video_meta)}] {video_id}: {len(actions)} actions -> {os.path.basename(output_video_path)}")
+
+            try:
+                create_annotated_video(
+                    video_path=video_path,
+                    output_path=output_video_path,
+                    action_results=actions,
+                    detector=detector,
+                    conf_threshold=args.yolo_conf,
+                    show_timeline=not args.no_timeline,
+                    progress=False,  # too noisy in batch mode
+                )
+                n_done += 1
+            except Exception as e:
+                print(f"  [ERROR] {video_id}: {e}")
+                continue
+
+        t5 = time.time()
+        print(f"  Done: {n_done} annotated videos in {t5 - t5_start:.0f}s")
 
     # Summary
     print(f"\n{'='*60}")
@@ -699,7 +772,9 @@ Input format:
     print(f"  Config generation:  {t2 - t1:.0f}s")
     print(f"  TriDet inference:   {t3 - t2:.0f}s")
     print(f"  Result export:      {t4 - t3:.0f}s")
-    print(f"  Total:              {t4 - t0:.0f}s")
+    if args.visualize:
+        print(f"  Video visualization:{t5 - t4:.0f}s")
+    print(f"  Total:              {t5 - t0:.0f}s")
     print(f"\n  Output files:")
     print(f"    Features:       {feat_dir}/")
     print(f"    Raw predictions: {output_dir}/predictions.pkl")

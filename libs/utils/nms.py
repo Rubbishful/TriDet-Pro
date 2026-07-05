@@ -1,6 +1,7 @@
 # Functions for 1D NMS, modified from:
 # https://github.com/open-mmlab/mmcv/blob/master/mmcv/ops/nms.py
-import os, sys
+import os
+import sys
 
 # Ensure this directory is on sys.path so the compiled .pyd can be found
 _this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -131,8 +132,6 @@ class NMSop(torch.autograd.Function):
             valid_mask = scores > min_score
             segs, scores = segs[valid_mask], scores[valid_mask]
             cls_idxs = cls_idxs[valid_mask]
-            valid_inds = torch.nonzero(
-                valid_mask, as_tuple=False).squeeze(dim=1)
 
         # nms op; return inds that is sorted by descending order
         if _has_nms_cpu:

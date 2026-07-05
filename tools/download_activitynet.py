@@ -94,7 +94,7 @@ ALL_CLASSES = [
 # 默认配置
 # ---------------------------------------------------------------------------
 DATASET_NAME = "activitynet-200"
-ZOO_DIR = r"D:\Code\ActivityNet\anet_video"
+ZOO_DIR = "./data/anet/videos"
 CHECKPOINT_FILE = os.path.join(ZOO_DIR, "download_checkpoint.json")
 DEFAULT_SPLIT = "validation"
 DEFAULT_PER_CLASS = 5
@@ -223,7 +223,7 @@ def try_download_one_class(class_name, per_class, args, logger):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="下载 ActivityNet 200 全量视频到 D:\\Code\\ActivityNet\\anet_video",
+        description="Download ActivityNet 200 videos to local directory",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -235,6 +235,8 @@ def main():
     )
     parser.add_argument("--test", action="store_true",
                         help="测试模式：每类只下载 1 个视频")
+    parser.add_argument("--zoo-dir", type=str, default=ZOO_DIR,
+                        help="视频下载目录 (default: %(default)s)")
     parser.add_argument("--per-class", type=int, default=None,
                         help=f"每类下载视频数 (默认: 测试=1, 正式={DEFAULT_PER_CLASS})")
     parser.add_argument("--split", default=DEFAULT_SPLIT,

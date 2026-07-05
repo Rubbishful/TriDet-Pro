@@ -1,4 +1,3 @@
-import os
 
 # backbone (e.g., conv / transformer)
 backbones = {}

@@ -1,15 +1,9 @@
 import os
-import shutil
-import time
 import json
 import pickle
 from typing import Dict
 
 import numpy as np
-
-import torch
-
-from .metrics import ANETdetection
 
 
 def load_results_from_pkl(filename):
