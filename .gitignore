@@ -15,6 +15,7 @@ ckpt/
 # Data
 data/
 *.mp4
+results/
 
 # Visualize output folder
 vis_output/
