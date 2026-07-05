@@ -150,8 +150,6 @@ def _merge(src, dst):
         if k in dst:
             if isinstance(v, dict):
                 _merge(src[k], dst[k])
-            else:
-                dst[k] = v
         else:
             dst[k] = v
 
