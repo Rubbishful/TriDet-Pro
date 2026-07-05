@@ -1,8 +1,13 @@
+import os as _os
+_os.environ.setdefault('KMP_DUPLICATE_LIB_OK', 'TRUE')
+
 # python imports
 import argparse
+import csv
 import os
 import time
 import datetime
+from pathlib import Path
 from pprint import pprint
 
 # torch imports
@@ -18,6 +23,48 @@ from libs.utils import (train_one_epoch, valid_one_epoch, ANETdetection,
                         save_checkpoint, make_optimizer, make_scheduler,
                         fix_random_seed, ModelEma)
 
+TRAIN_OUTPUT = Path(__file__).resolve().parent / 'train_output'
+
+
+def save_loss_csv(all_records, filepath):
+    """Save per-iteration training loss records to CSV."""
+    if not all_records:
+        return
+    keys = ['epoch', 'iteration', 'final_loss', 'cls_loss', 'reg_loss']
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=keys, extrasaction='ignore')
+        writer.writeheader()
+        writer.writerows(all_records)
+
+
+def plot_loss_curves(loss_records, save_dir, tag=''):
+    """Generate training loss curve plot."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+    if loss_records:
+        iters = [r['iteration'] for r in loss_records]
+        final = [r['final_loss'] for r in loss_records]
+        ax.plot(iters, final, 'b-', alpha=0.5, linewidth=0.5, label='final_loss')
+        if 'cls_loss' in loss_records[0]:
+            cls_vals = [r['cls_loss'] for r in loss_records]
+            ax.plot(iters, cls_vals, 'g-', alpha=0.3, linewidth=0.3, label='cls_loss')
+        if 'reg_loss' in loss_records[0]:
+            reg_vals = [r['reg_loss'] for r in loss_records]
+            ax.plot(iters, reg_vals, 'r-', alpha=0.3, linewidth=0.3, label='reg_loss')
+        ax.set_xlabel('Global Iteration')
+        ax.set_ylabel('Loss')
+        ax.set_title('Training Loss' + (f' [{tag}]' if tag else ''))
+        ax.legend(fontsize=7)
+        ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    fig_path = os.path.join(save_dir, f'loss_curves_{tag}.png' if tag else 'loss_curves.png')
+    plt.savefig(fig_path, dpi=150)
+    plt.close()
+    return fig_path
+
 
 ################################################################################
 def main(args):
@@ -31,6 +78,12 @@ def main(args):
     else:
         raise ValueError("Config file does not exist.")
     pprint(cfg)
+
+    # batch size override
+    if args.batch_size > 0:
+        old_bs = cfg['loader'].get('batch_size', 8)
+        cfg['loader']['batch_size'] = args.batch_size
+        print(f"[Setup] Batch size override: {old_bs} -> {args.batch_size}")
 
     # prep for output folder (based on time stamp)
     os.makedirs(cfg['output_folder'], exist_ok=True)
@@ -111,9 +164,13 @@ def main(args):
         'early_stop_epochs',
         cfg['opt']['epochs'] + cfg['opt']['warmup_epochs']
     )
+    tag = f"{cfg_filename}_b{cfg['loader']['batch_size']}_ga{args.grad_accum}"
+    all_loss_records = []
+
     for epoch in range(args.start_epoch, max_epochs):
         # train for one epoch
-        train_one_epoch(
+        use_amp = args.amp or cfg['train_cfg'].get('use_amp', False)
+        records = train_one_epoch(
             train_loader,
             model,
             optimizer,
@@ -121,8 +178,18 @@ def main(args):
             epoch,
             model_ema=model_ema,
             clip_grad_l2norm=cfg['train_cfg']['clip_grad_l2norm'],
-            print_freq=args.print_freq
+            print_freq=args.print_freq,
+            grad_accum=args.grad_accum,
+            return_losses=True,
+            use_amp=use_amp,
         )
+        if records:
+            all_loss_records.extend(records)
+
+        # save loss CSV & plot periodically
+        TRAIN_OUTPUT.mkdir(parents=True, exist_ok=True)
+        save_loss_csv(all_loss_records, str(TRAIN_OUTPUT / f'loss_records_{tag}.csv'))
+        plot_loss_curves(all_loss_records, str(TRAIN_OUTPUT), tag)
 
         # save ckpt once in a while
         if (
@@ -148,6 +215,7 @@ def main(args):
                 file_name='epoch_{:03d}.pth.tar'.format(epoch)
             )
 
+    print(f"Loss plots & CSV saved to: {TRAIN_OUTPUT}")
     print("All done!")
     return
 
@@ -167,5 +235,11 @@ if __name__ == '__main__':
                         help='name of exp folder (default: none)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to a checkpoint (default: none)')
+    parser.add_argument('--batch-size', default=-1, type=int,
+                        help='override batch size from config, -1 to use config value')
+    parser.add_argument('--grad-accum', default=1, type=int,
+                        help='gradient accumulation steps (default: 1)')
+    parser.add_argument('--amp', action='store_true', default=False,
+                        help='enable automatic mixed precision training')
     args = parser.parse_args()
     main(args)
