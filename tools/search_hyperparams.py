@@ -330,7 +330,7 @@ def generate_trials(search_space, args, rng):
 
 @torch.no_grad()
 def compute_val_loss(model, val_loader):
-    model.train()
+    model.eval()
     meter = AverageMeter()
     for video_list in val_loader:
         losses = model(video_list)

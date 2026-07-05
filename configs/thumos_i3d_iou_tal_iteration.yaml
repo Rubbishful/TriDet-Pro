@@ -51,13 +51,13 @@ model: {
   # ====== IoU Prediction Head ======
   use_iou_head: True,        # 启用 IoU 预测分支
   iou_head_dim: 512,         # IoU 头隐藏层维度
-  iou_head_layers: 4,        # IoU 头层数 (比 ClsHead 多一层)
+  iou_head_layers: 2,        # IoU 头层数 (Round 2 optimal)
   iou_loss_type: bce,         # IoU loss 类型: bce | qfl
-  iou_loss_weight: 1.0,      # IoU loss 权重
+  iou_loss_weight: 0.1,      # IoU loss 权重 (Round 2 optimal)
   iou_qfl_beta: 2.0,         # QFL 调制因子 (仅 iou_loss_type=qfl 时生效)
   iou_warmup_epochs: 5,      # IoU loss 预热 (epoch 数)
-  iou_per_level: False,       # 每 FPN level 独立 IoU head
-  iou_head_residual: False,   # IoU head 残差连接
+  iou_per_level: False,       # 每 FPN level 独立 IoU head (Round 2: False better)
+  iou_head_residual: True,    # IoU head 残差连接 (Round 2 optimal)
 
   # ====== Task-Aligned Assigner ======
   tal_topk: 0,              # 每个 GT 保留的正样本数 (>0 启用 TAL)
