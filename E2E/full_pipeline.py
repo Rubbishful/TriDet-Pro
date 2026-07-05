@@ -84,10 +84,10 @@ def main():
 
     # Optional arguments
     parser.add_argument("--rgb_model", type=str,
-                        default="model/rgb_imagenet.pt",
+                        default="E2E/model/rgb_imagenet.pt",
                         help="RGB I3D model weights")
     parser.add_argument("--flow_model", type=str,
-                        default="model/flow_imagenet.pt",
+                        default="E2E/model/flow_imagenet.pt",
                         help="Flow I3D model weights")
     parser.add_argument("--device", type=str, default="cuda:0",
                         help="Computation device")
@@ -106,7 +106,7 @@ def main():
     viz_group = parser.add_argument_group("Visualization (optional)")
     viz_group.add_argument("--visualize", action="store_true", default=False,
                         help="Generate annotated video with YOLO boxes + action labels")
-    viz_group.add_argument("--yolo_model", type=str, default="model/yolov8n.pt",
+    viz_group.add_argument("--yolo_model", type=str, default="E2E/model/yolov8n.pt",
                         help="YOLO model name or path (default: E2E/model/yolov8n.pt)")
     viz_group.add_argument("--yolo_conf", type=float, default=0.3,
                         help="YOLO confidence threshold (default: 0.3)")

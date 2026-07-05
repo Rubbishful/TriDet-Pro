@@ -99,10 +99,10 @@ Examples:
     # ---- Model ----
     model_group = parser.add_argument_group("Model weights")
     model_group.add_argument("--rgb_model", type=str,
-                             default="model/rgb_imagenet.pt",
+                             default="E2E/model/rgb_imagenet.pt",
                              help="Path to RGB I3D weights")
     model_group.add_argument("--flow_model", type=str,
-                             default="model/flow_imagenet.pt",
+                             default="E2E/model/flow_imagenet.pt",
                              help="Path to Flow I3D weights")
     model_group.add_argument("--mode", type=str, default="rgb",
                              choices=["rgb", "flow", "rgb+flow"],

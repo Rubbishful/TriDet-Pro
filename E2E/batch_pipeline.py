@@ -10,7 +10,7 @@ Workflow:
 
 Usage:
   python E2E/batch_pipeline.py \
-      --video_dir ./data/videos\ \
+      --video_dir ./data/videos/ \
       --output_dir ./result/ \
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
       --device cuda:0
@@ -583,8 +583,8 @@ Examples:
       --video_dir ./videos \\
       --output_dir ./results \\
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \\
-      --rgb_model model/rgb_imagenet.pt \\
-      --flow_model model/flow_imagenet.pt
+      --rgb_model E2E/model/rgb_imagenet.pt \\
+      --flow_model E2E/model/flow_imagenet.pt
 
 Input format:
   python E2E/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --ckpt <weights>
@@ -602,10 +602,10 @@ Input format:
     # Feature extraction options
     feat_group = parser.add_argument_group("Feature Extraction")
     feat_group.add_argument("--rgb_model", type=str,
-                            default="model/rgb_imagenet.pt",
+                            default="E2E/model/rgb_imagenet.pt",
                             help="Path to the RGB I3D weights")
     feat_group.add_argument("--flow_model", type=str,
-                            default="model/flow_imagenet.pt",
+                            default="E2E/model/flow_imagenet.pt",
                             help="Path to the Flow I3D weights")
     feat_group.add_argument("--feat_stride", type=int, default=4)
     feat_group.add_argument("--num_frames", type=int, default=16)
@@ -637,8 +637,8 @@ Input format:
     viz_group = parser.add_argument_group("Visualization (optional)")
     viz_group.add_argument("--visualize", action="store_true", default=False,
                         help="Generate annotated videos with YOLO boxes + action labels")
-    viz_group.add_argument("--yolo_model", type=str, default="model/yolov8n.pt",
-                        help="YOLO model name or path (default: model/yolov8n.pt)")
+    viz_group.add_argument("--yolo_model", type=str, default="E2E/model/yolov8n.pt",
+                        help="YOLO model name or path (default: E2E/model/yolov8n.pt)")
     viz_group.add_argument("--yolo_conf", type=float, default=0.3,
                         help="YOLO confidence threshold (default: 0.3)")
     viz_group.add_argument("--no_timeline", action="store_true", default=False,
