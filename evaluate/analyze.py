@@ -15,7 +15,7 @@ matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'DejaVu S
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WORK_DIR = os.path.join(REPO, 'evaluate')
+WORK_DIR = os.path.join(REPO, 'evaluate', 'results')
 CSV_PATH = os.path.join(WORK_DIR, 'ablation_results.csv')
 REPORT_PATH = os.path.join(WORK_DIR, 'ablation_report.md')
 
