@@ -10,9 +10,9 @@ Workflow:
 
 Usage:
   python scripts/batch_pipeline.py \
-      --video_dir ./input_videos \
-      --output_dir ./pipeline_output \
-      --checkpoint ./epoch_039.pth.tar \
+      --video_dir ./data/videos\ \
+      --output_dir ./result/ \
+      --checkpoint ./ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
       --device cuda:0
 
 Output:
