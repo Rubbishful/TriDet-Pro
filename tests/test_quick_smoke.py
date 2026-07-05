@@ -54,18 +54,13 @@ def smoke_one(name, config_path):
     try:
         cfg = load_config(config_path)
         model_cfg = cfg["model"].copy()
-        model_cfg["train_cfg"] = cfg["train_cfg"]
-        model_cfg["test_cfg"] = cfg["test_cfg"]
-        model_cfg["input_dim"] = cfg["dataset"]["input_dim"]
-        model_cfg["num_classes"] = cfg["dataset"]["num_classes"]
-        model_cfg["max_seq_len"] = min(cfg["dataset"]["max_seq_len"], 256)
 
-        model = make_meta_arch(model_cfg["backbone_type"], **model_cfg).cuda()
+        model = make_meta_arch(cfg['model_name'], **model_cfg)
         device = next(model.parameters()).device
 
         input_dim = cfg["dataset"]["input_dim"]
         num_classes = cfg["dataset"]["num_classes"]
-        feat_len = model_cfg["max_seq_len"]
+        feat_len = min(cfg["dataset"]["max_seq_len"], 256)
 
         # ── 训练模式 ──
         model.train()
@@ -83,7 +78,6 @@ def smoke_one(name, config_path):
                 return False, f"{k} = {v.item()} (非有限值)"
 
         loss_str = ", ".join(f"{k}={losses[k].item():.4f}" for k in required)
-        train_ok = True
 
         # ── 推理模式 ──
         model.eval()
@@ -107,23 +101,25 @@ def smoke_one(name, config_path):
 
         return True, f"train[{loss_str}] infer[{infer_str}]"
 
-    except Exception:
-        return False, traceback.format_exc()
+    except Exception as e:
+        import traceback as _tb
+        _tb.print_exc()
+        return False, f"{type(e).__name__}: {e}"
 
 # ── 主入口 ──────────────────────────────────────────────────────────
 
 def main():
     passed, failed = 0, []
     for name, path in CONFIGS:
+        print(f"\n  --- {name} ({path}) ---", flush=True)
         ok, msg = smoke_one(name, path)
         status = "PASS" if ok else "FAIL"
-        print(f"  [{status}] {name}")
-        if not ok:
-            print(f"         {msg.split(chr(10))[-1][:120]}")
-            failed.append(name)
-        else:
-            print(f"         {msg}")
+        if ok:
+            print(f"  [{status}] {msg}", flush=True)
             passed += 1
+        else:
+            print(f"  [{status}] {msg}", flush=True)
+            failed.append(name)
 
     print(f"\n  RESULT: {passed}/{len(CONFIGS)} passed")
     if failed:
