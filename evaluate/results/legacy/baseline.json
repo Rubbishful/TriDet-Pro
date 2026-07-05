@@ -1,6 +1,6 @@
 {
-  "config": "D:\\Code\\TriDet-Pro\\configs/thumos_i3d.yaml",
-  "checkpoint": "D:\\Code\\TriDet-Pro\\ckpt/thumos_i3d_baseline/epoch_039.pth.tar",
+  "config": "configs/thumos_i3d.yaml",
+  "checkpoint": "ckpt/thumos_i3d_baseline\\epoch_039.pth.tar",
   "mAP_per_tiou": {
     "0.30": 75.12647948078481,
     "0.40": 70.22787411552245,
@@ -11,5 +11,5 @@
   "avg_mAP": 59.31281634907951,
   "n_videos": 212,
   "n_predictions": 12680,
-  "inference_time_s": 26.006136655807495
+  "inference_time_s": 480.1878340244293
 }
