@@ -15,16 +15,21 @@ ckpt/
 # Data
 data/
 *.mp4
+results/
 
-# output
+# Visualize output folder
 vis_output/
 result/
+train_output
+eval_output
 
 # IDE & tools
 .clawhub/
 .vscode/
 .idea/
 .claude/
+*.code-workspace
+Tridet.code-workspace
 .reasonix/
 
 # Project docs (optional: keep if you want to share with teammates)

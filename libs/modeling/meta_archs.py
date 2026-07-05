@@ -5,7 +5,11 @@ from torch import nn
 from torch.nn import functional as F
 
 from .blocks import MaskedConv1D, Scale, LayerNorm
-from .losses import ctr_diou_loss_1d, sigmoid_focal_loss, ctr_giou_loss_1d
+from .losses import (
+    ctr_diou_loss_1d, sigmoid_focal_loss, ctr_giou_loss_1d,
+    ctr_eiou_loss_1d, ctr_alpha_diou_loss_1d, ctr_focaler_diou_loss_1d,
+    quality_focal_loss,
+)
 from .models import register_meta_arch, make_backbone, make_neck, make_generator
 from ..utils import batched_nms
 
@@ -184,6 +188,78 @@ class RegHead(nn.Module):
         return out_offsets
 
 
+class IoUHead(nn.Module):
+    """
+    1D Conv heads for IoU prediction.
+    Predicts the temporal IoU between predicted and ground-truth segments.
+    Class-agnostic: single-channel output shared across all action categories.
+    """
+
+    def __init__(
+            self,
+            input_dim,
+            feat_dim,
+            num_layers=4,
+            kernel_size=3,
+            act_layer=nn.ReLU,
+            with_ln=False,
+            prior_prob=0.01,
+            use_residual=False,
+    ):
+        super().__init__()
+        self.act = act_layer()
+        self.use_residual = use_residual
+
+        self.head = nn.ModuleList()
+        self.norm = nn.ModuleList()
+        for idx in range(num_layers - 1):
+            if idx == 0:
+                in_dim = input_dim
+                out_dim = feat_dim
+            else:
+                in_dim = feat_dim
+                out_dim = feat_dim
+            self.head.append(
+                MaskedConv1D(
+                    in_dim, out_dim, kernel_size,
+                    stride=1,
+                    padding=kernel_size // 2,
+                    bias=(not with_ln)
+                )
+            )
+            if with_ln:
+                self.norm.append(LayerNorm(out_dim))
+            else:
+                self.norm.append(nn.Identity())
+
+        # single-channel output (class-agnostic IoU prediction)
+        self.iou_head = MaskedConv1D(
+            feat_dim, 1, kernel_size,
+            stride=1, padding=kernel_size // 2
+        )
+
+        # bias init toward low IoU to prevent high initial BCE on negatives
+        bias_value = -(math.log((1 - prior_prob) / prior_prob))
+        torch.nn.init.constant_(self.iou_head.conv.bias, bias_value)
+
+    def forward(self, fpn_feats, fpn_masks):
+        assert len(fpn_feats) == len(fpn_masks)
+
+        out_iou = tuple()
+        for cur_feat, cur_mask in zip(fpn_feats, fpn_masks):
+            cur_out = cur_feat
+            for idx in range(len(self.head)):
+                identity = cur_out
+                cur_out, _ = self.head[idx](cur_out, cur_mask)
+                cur_out = self.act(self.norm[idx](cur_out))
+                if self.use_residual and idx > 0:
+                    cur_out = cur_out + identity
+            cur_iou, _ = self.iou_head(cur_out, cur_mask)
+            out_iou += (cur_iou,)
+
+        return out_iou
+
+
 @register_meta_arch("TriDet")
 class TriDet(nn.Module):
     """
@@ -222,7 +298,30 @@ class TriDet(nn.Module):
             use_trident_head,  # if use the Trident-head
             num_classes,  # number of action classes
             train_cfg,  # other cfg for training
-            test_cfg  # other cfg for testing
+            test_cfg,  # other cfg for testing
+            use_att=False,  # if to use channel attention in SGP blocks
+            att_type='SE',  # attention type: 'SE' or 'ECA'
+            att_position='fusion',  # 'pre_fusion' | 'fusion' | 'mlp'
+            att_reduction=16,  # reduction ratio for SE
+            att_kernel_size=3,  # kernel size for ECA
+            bifpn_num_repeats=1,  # number of BiFPN block repeats
+            bifpn_fusion_method='fast_norm',  # fast_norm | sum
+            bifpn_drop_path=0.0,  # stochastic depth in BiFPN blocks
+            reg_loss_type='diou',  # diou | eiou | alpha_diou | focaler_diou
+            reg_loss_kwargs=None,  # extra kwargs for the chosen loss
+            use_iou_head=False,  # if to use IoU prediction head
+            iou_head_dim=512,  # feat dim for IoU head
+            iou_head_layers=4,  # number of layers in IoU head
+            iou_loss_weight=1.0,  # weight for IoU prediction loss
+            iou_loss_type="qfl",  # IoU head loss: 'bce' | 'qfl'
+            iou_qfl_beta=2.0,  # QFL modulating factor (only when iou_loss_type='qfl')
+            iou_warmup_epochs=5,  # warmup epochs before IoU loss activates
+            iou_per_level=False,  # per-FPN-level IoU heads
+            iou_head_residual=False,  # residual connections in IoUHead
+            tal_topk=0,  # top-K for TAL, 0 = disable
+            tal_alpha=1.0,  # cls score exponent in TAL alignment
+            tal_beta=4.0,  # IoU exponent in TAL alignment
+            tal_start_epoch=5,  # epoch to start TAL
     ):
         super().__init__()
         # re-distribute params to backbone / neck / head
@@ -262,6 +361,21 @@ class TriDet(nn.Module):
         self.train_dropout = train_cfg['dropout']
         self.train_droppath = train_cfg['droppath']
         self.train_label_smoothing = train_cfg['label_smoothing']
+        self.reg_loss_type = reg_loss_type
+        self.reg_loss_kwargs = reg_loss_kwargs if reg_loss_kwargs is not None else {}
+        self.use_iou_head = use_iou_head
+        self.iou_loss_weight = iou_loss_weight
+        self.iou_loss_type = iou_loss_type
+        self.iou_qfl_beta = iou_qfl_beta
+        self.iou_warmup_epochs = iou_warmup_epochs
+        self.iou_per_level = iou_per_level
+        self.iou_head_residual = iou_head_residual
+        self.use_tal = tal_topk > 0
+        self.tal_topk = tal_topk
+        self.tal_alpha = tal_alpha
+        self.tal_beta = tal_beta
+        self.tal_start_epoch = tal_start_epoch
+        self.current_epoch = 0
 
         # test time config
         self.test_pre_nms_thresh = test_cfg['pre_nms_thresh']
@@ -298,7 +412,12 @@ class TriDet(nn.Module):
                     'sgp_win_size': self.sgp_win_size,
                     'use_abs_pe': use_abs_pe,
                     'k': k,
-                    'init_conv_vars': init_conv_vars
+                    'init_conv_vars': init_conv_vars,
+                    'use_att': use_att,
+                    'att_type': att_type,
+                    'att_position': att_position,
+                    'att_reduction': att_reduction,
+                    'att_kernel_size': att_kernel_size
                 }
             )
         else:
@@ -315,16 +434,18 @@ class TriDet(nn.Module):
             )
 
         # fpn network: convs
-        assert fpn_type in ['fpn', 'identity']
-        self.neck = make_neck(
-            fpn_type,
-            **{
-                'in_channels': [embd_dim] * (backbone_arch[-1] + 1),
-                'out_channel': fpn_dim,
-                'scale_factor': scale_factor,
-                'with_ln': fpn_with_ln
-            }
-        )
+        assert fpn_type in ['fpn', 'identity', 'bifpn']
+        neck_kwargs = {
+            'in_channels': [embd_dim] * (backbone_arch[-1] + 1),
+            'out_channel': fpn_dim,
+            'scale_factor': scale_factor,
+            'with_ln': fpn_with_ln
+        }
+        if fpn_type == 'bifpn':
+            neck_kwargs['num_repeats'] = bifpn_num_repeats
+            neck_kwargs['fusion_method'] = bifpn_fusion_method
+            neck_kwargs['drop_path'] = bifpn_drop_path
+        self.neck = make_neck(fpn_type, **neck_kwargs)
 
         # location generator: points
         self.point_generator = make_generator(
@@ -384,6 +505,25 @@ class TriDet(nn.Module):
                 num_bins=0
             )
 
+        # IoU prediction head
+        if self.use_iou_head:
+            iou_head_kwargs = dict(
+                num_layers=iou_head_layers,
+                kernel_size=head_kernel_size,
+                with_ln=head_with_ln,
+                prior_prob=self.train_cls_prior_prob,
+                use_residual=iou_head_residual,
+            )
+            if iou_per_level:
+                self.iou_head = nn.ModuleList([
+                    IoUHead(fpn_dim, iou_head_dim, **iou_head_kwargs)
+                    for _ in self.fpn_strides
+                ])
+            else:
+                self.iou_head = IoUHead(fpn_dim, iou_head_dim, **iou_head_kwargs)
+        else:
+            self.iou_head = None
+
         # maintain an EMA of #foreground to stabilize the loss normalizer
         # useful for small mini-batch training
         self.loss_normalizer = train_cfg['init_loss_norm']
@@ -394,6 +534,10 @@ class TriDet(nn.Module):
         # a hacky way to get the device type
         # will throw an error if parameters are on different devices
         return list(set(p.device for p in self.parameters()))[0]
+
+    def set_epoch(self, epoch):
+        """Update current epoch for TAL activation scheduling."""
+        self.current_epoch = epoch
 
     def decode_offset(self, out_offsets, pred_start_neighbours, pred_end_neighbours):
         """解码网络输出为时序偏移量 (left_offset, right_offset)。
@@ -487,11 +631,26 @@ class TriDet(nn.Module):
         # out_offset: List[B, 2, T_i]
         out_offsets = self.reg_head(fpn_feats, fpn_masks)
 
+        # out_iou: List[B, 1, T_i]
+        if self.use_iou_head:
+            if self.iou_per_level:
+                out_iou_logits = tuple(
+                    head((feat,), (mask,))[0]
+                    for head, feat, mask in zip(self.iou_head, fpn_feats, fpn_masks)
+                )
+            else:
+                out_iou_logits = self.iou_head(fpn_feats, fpn_masks)
+        else:
+            out_iou_logits = None
+
         # permute the outputs
         # out_cls: F List[B, #cls, T_i] -> F List[B, T_i, #cls]
         out_cls_logits = [x.permute(0, 2, 1) for x in out_cls_logits]
         # out_offset: F List[B, 2 (xC), T_i] -> F List[B, T_i, 2 (xC)]
         out_offsets = [x.permute(0, 2, 1) for x in out_offsets]
+        # out_iou: F List[B, 1, T_i] -> F List[B, T_i, 1]
+        if self.use_iou_head:
+            out_iou_logits = [x.permute(0, 2, 1) for x in out_iou_logits]
         # fpn_masks: F list[B, 1, T_i] -> F List[B, T_i]
         fpn_masks = [x.squeeze(1) for x in fpn_masks]
 
@@ -505,15 +664,17 @@ class TriDet(nn.Module):
 
             # compute the gt labels for cls & reg
             # list of prediction targets
-            gt_cls_labels, gt_offsets = self.label_points(
+            gt_cls_labels, gt_offsets, gt_indices = self.label_points(
                 points, gt_segments, gt_labels)
 
             # compute the loss and return
             losses = self.losses(
                 fpn_masks,
                 out_cls_logits, out_offsets,
-                gt_cls_labels, gt_offsets,
+                gt_cls_labels, gt_offsets, gt_indices,
                 out_lb_logits, out_rb_logits,
+                out_iou_logits,
+                gt_segments, gt_labels, points,
             )
             return losses
 
@@ -524,6 +685,7 @@ class TriDet(nn.Module):
                 video_list, points, fpn_masks,
                 out_cls_logits, out_offsets,
                 out_lb_logits, out_rb_logits,
+                out_iou_logits,
             )
             t_infer_end = time.time()
             # accumulate timing for profiling
@@ -599,18 +761,19 @@ class TriDet(nn.Module):
         # This is shared for all samples in the mini-batch
         num_levels = len(points)
         concat_points = torch.cat(points, dim=0)
-        gt_cls, gt_offset = [], []
+        gt_cls, gt_offset, gt_indices = [], [], []
 
         # loop over each video sample
         for gt_segment, gt_label in zip(gt_segments, gt_labels):
-            cls_targets, reg_targets = self.label_points_single_video(
+            cls_targets, reg_targets, gt_idx = self.label_points_single_video(
                 concat_points, gt_segment, gt_label
             )
             # append to list (len = # images, each of size FT x C)
             gt_cls.append(cls_targets)
             gt_offset.append(reg_targets)
+            gt_indices.append(gt_idx)
 
-        return gt_cls, gt_offset
+        return gt_cls, gt_offset, gt_indices
 
     @torch.no_grad()
     def label_points_single_video(self, concat_points, gt_segment, gt_label):
@@ -636,7 +799,8 @@ class TriDet(nn.Module):
         if num_gts == 0:
             cls_targets = gt_segment.new_full((num_pts, self.num_classes), 0)
             reg_targets = gt_segment.new_zeros((num_pts, 2))
-            return cls_targets, reg_targets
+            gt_indices = gt_segment.new_full((num_pts,), -1, dtype=torch.long)
+            return cls_targets, reg_targets, gt_indices
 
         # compute the lengths of all segments -> F T x N
         lens = gt_segment[:, 1] - gt_segment[:, 0]
@@ -706,13 +870,113 @@ class TriDet(nn.Module):
         # normalization based on stride
         reg_targets /= concat_points[:, 3, None]
 
-        return cls_targets, reg_targets
+        # track which GT each point is assigned to (-1 for unmatched)
+        gt_indices = min_len_inds.clone()
+        gt_indices[min_len == float('inf')] = -1
+
+        return cls_targets, reg_targets, gt_indices
+
+    def _compute_reg_loss(self, pred_offsets, gt_offsets):
+        """Compute regression loss based on self.reg_loss_type."""
+        loss_type = self.reg_loss_type
+        loss_kwargs = self.reg_loss_kwargs.copy()
+
+        if loss_type == 'giou':
+            return ctr_giou_loss_1d(pred_offsets, gt_offsets, reduction='sum')
+        elif loss_type == 'diou':
+            return ctr_diou_loss_1d(pred_offsets, gt_offsets, reduction='sum')
+        elif loss_type == 'eiou':
+            return ctr_eiou_loss_1d(pred_offsets, gt_offsets, reduction='sum')
+        elif loss_type == 'alpha_diou':
+            alpha = loss_kwargs.pop('alpha', 3.0)
+            return ctr_alpha_diou_loss_1d(pred_offsets, gt_offsets, reduction='sum', alpha=alpha)
+        elif loss_type == 'focaler_diou':
+            d = loss_kwargs.pop('d', 0.0)
+            u = loss_kwargs.pop('u', 0.95)
+            return ctr_focaler_diou_loss_1d(pred_offsets, gt_offsets, reduction='sum', d=d, u=u)
+        else:
+            raise ValueError(f"Unknown reg_loss_type: {loss_type}")
+
+    @torch.no_grad()
+    def _tal_refine_targets(
+            self,
+            concat_points,
+            gt_segments, gt_labels, gt_indices,
+            out_cls_logits_cat,
+            all_decoded_offsets,
+            valid_mask,
+    ):
+        """Refine label assignment using Task-Aligned Assigner.
+
+        For each GT, selects top-K candidates by alignment score
+        (cls_score^alpha * IoU^beta), replacing the geometric assignment.
+        """
+        B = len(gt_segments)
+        device = concat_points.device
+        FT = concat_points.shape[0]
+
+        new_gt_cls = []
+        new_gt_offs = []
+
+        for b in range(B):
+            num_gts = gt_segments[b].shape[0]
+            gt_cls_b = torch.zeros(FT, self.num_classes, device=device)
+            gt_offs_b = torch.zeros(FT, 2, device=device)
+
+            for g in range(num_gts):
+                gt_label = gt_labels[b][g]
+                gt_seg = gt_segments[b][g]
+
+                # geometric candidates assigned to this GT
+                cand_mask = (gt_indices[b] == g) & valid_mask[b]
+                cand_idx = cand_mask.nonzero(as_tuple=True)[0]
+                if len(cand_idx) == 0:
+                    continue
+
+                # cls score for this GT's category
+                cls_scores = out_cls_logits_cat[b, cand_idx, gt_label].sigmoid()
+
+                # predicted offsets for candidates
+                if self.use_trident_head:
+                    pred_off = all_decoded_offsets[b, cand_idx, gt_label, :]  # [K, 2]
+                else:
+                    pred_off = all_decoded_offsets[b, cand_idx, :]  # [K, 2]
+
+                # GT offsets (stride-normalized, same as reg target)
+                point_t = concat_points[cand_idx, 0]
+                point_s = concat_points[cand_idx, 3]
+                gt_left = (point_t - gt_seg[0]) / point_s
+                gt_right = (gt_seg[1] - point_t) / point_s
+                gt_off = torch.stack([gt_left, gt_right], dim=-1)
+
+                # IoU from existing GIoU loss (1D GIoU reduces to IoU)
+                iou = 1.0 - ctr_giou_loss_1d(pred_off, gt_off, reduction='none')
+
+                # alignment score
+                alignment = (cls_scores ** self.tal_alpha) * (iou.clamp(min=1e-8) ** self.tal_beta)
+
+                # select top-K
+                K = min(self.tal_topk, len(cand_idx))
+                _, topk_local = alignment.topk(K)
+                selected = cand_idx[topk_local]
+
+                # assign selected points to this GT
+                gt_cls_b[selected, gt_label] = 1.0
+                gt_offs_b[selected, 0] = gt_left[topk_local]
+                gt_offs_b[selected, 1] = gt_right[topk_local]
+
+            new_gt_cls.append(gt_cls_b)
+            new_gt_offs.append(gt_offs_b)
+
+        return new_gt_cls, new_gt_offs
 
     def losses(
             self, fpn_masks,
             out_cls_logits, out_offsets,
-            gt_cls_labels, gt_offsets,
+            gt_cls_labels, gt_offsets, gt_indices,
             out_start, out_end,
+            out_iou_logits,
+            gt_segments, gt_labels, points,
     ):
         """计算分类损失和回归损失。
 
@@ -759,18 +1023,35 @@ class TriDet(nn.Module):
         gt_cls = torch.stack(gt_cls_labels)
         pos_mask = torch.logical_and((gt_cls.sum(-1) > 0), valid_mask)
 
-        decoded_offsets = self.decode_offset(out_offsets, out_start_logits, out_end_logits)  # bz, stack_T, num_class, 2
-        decoded_offsets = decoded_offsets[pos_mask]
+        # decode ALL offsets (before TAL / pos_mask filtering)
+        all_decoded_offsets = self.decode_offset(out_offsets, out_start_logits, out_end_logits)
+
+        # optional TAL refinement
+        if self.use_tal and self.current_epoch >= self.tal_start_epoch:
+            concat_points = torch.cat(points, dim=0)  # [FT, 4]
+            gt_cls_labels, gt_offsets = self._tal_refine_targets(
+                concat_points,
+                gt_segments, gt_labels, gt_indices,
+                torch.cat(out_cls_logits, dim=1),  # [B, FT, C]
+                all_decoded_offsets,
+                valid_mask,
+            )
+            # recompute gt_cls and pos_mask from refined targets
+            gt_cls = torch.stack(gt_cls_labels)
+            pos_mask = torch.logical_and((gt_cls.sum(-1) > 0), valid_mask)
+
+        decoded_offsets = all_decoded_offsets[pos_mask]
+        gt_offsets_pos = torch.stack(gt_offsets)[pos_mask]  # [num_pos, 2]
 
         if self.use_trident_head:
             # the boundary head predicts the classification score for each categories.
             pred_offsets = decoded_offsets[gt_cls[pos_mask].bool()]
             # cat the predicted offsets -> (B, FT, 2 (xC)) -> # (#Pos, 2 (xC))
             vid = torch.where(gt_cls[pos_mask])[0]
-            gt_offsets = torch.stack(gt_offsets)[pos_mask][vid]
+            gt_offsets = gt_offsets_pos[vid]
         else:
             pred_offsets = decoded_offsets
-            gt_offsets = torch.stack(gt_offsets)[pos_mask]
+            gt_offsets = gt_offsets_pos
 
         # update the loss normalizer
         num_pos = pos_mask.sum().item()
@@ -805,23 +1086,47 @@ class TriDet(nn.Module):
         cls_loss = cls_loss.sum()
         cls_loss /= self.loss_normalizer
 
+        # 1.5 IoU prediction loss (with warmup)
+        if self.use_iou_head and self.current_epoch >= self.iou_warmup_epochs:
+            iou_logits_cat = torch.cat(out_iou_logits, dim=1).squeeze(-1)  # [B, FT]
+            with torch.no_grad():
+                iou_target = torch.zeros_like(iou_logits_cat)
+                if num_pos > 0:
+                    # compute actual IoU for positive positions
+                    if self.use_trident_head:
+                        pos_decoded = all_decoded_offsets[pos_mask]  # [num_pos, C, 2]
+                        pos_cls_idx = gt_cls[pos_mask].argmax(dim=1)  # [num_pos]
+                        pos_pred_offs = pos_decoded[
+                            torch.arange(num_pos, device=pos_decoded.device),
+                            pos_cls_idx, :
+                        ]  # [num_pos, 2]
+                        pos_gt_offs = gt_offsets_pos  # [num_pos, 2]
+                    else:
+                        pos_pred_offs = pred_offsets
+                        pos_gt_offs = gt_offsets
+                    actual_iou = 1.0 - ctr_giou_loss_1d(
+                        pos_pred_offs.detach(), pos_gt_offs, reduction='none'
+                    )
+                    iou_target[pos_mask] = actual_iou
+            # IoU loss on all valid positions: negatives target=0, positives target=IoU
+            if self.iou_loss_type == 'bce':
+                iou_loss = F.binary_cross_entropy_with_logits(
+                    iou_logits_cat[valid_mask], iou_target[valid_mask], reduction='sum'
+                )
+            else:
+                iou_loss = quality_focal_loss(
+                    iou_logits_cat[valid_mask], iou_target[valid_mask],
+                    beta=self.iou_qfl_beta, reduction='sum'
+                )
+            iou_loss /= self.loss_normalizer
+        else:
+            iou_loss = None
+
         # 2. regression using IoU/GIoU loss (defined on positive samples)
         if num_pos == 0:
             reg_loss = 0 * pred_offsets.sum()
         else:
-            # regression loss defined on positive samples
-            if self.train_loss_type == 'giou':
-                reg_loss = ctr_giou_loss_1d(
-                    pred_offsets,
-                    gt_offsets,
-                    reduction='sum'
-                )
-            else:
-                reg_loss = ctr_diou_loss_1d(
-                    pred_offsets,
-                    gt_offsets,
-                    reduction='sum'
-                )
+            reg_loss = self._compute_reg_loss(pred_offsets, gt_offsets)
             reg_loss /= self.loss_normalizer
 
         if self.train_loss_weight > 0:
@@ -831,9 +1136,16 @@ class TriDet(nn.Module):
 
         # return a dict of losses
         final_loss = cls_loss + reg_loss * loss_weight
-        return {'cls_loss': cls_loss,
-                'reg_loss': reg_loss,
-                'final_loss': final_loss}
+        if iou_loss is not None:
+            final_loss = final_loss + iou_loss * self.iou_loss_weight
+            return {'cls_loss': cls_loss,
+                    'reg_loss': reg_loss,
+                    'final_loss': final_loss,
+                    'iou_loss': iou_loss}
+        else:
+            return {'cls_loss': cls_loss,
+                    'reg_loss': reg_loss,
+                    'final_loss': final_loss}
 
     @torch.no_grad()
     def inference(
@@ -842,6 +1154,7 @@ class TriDet(nn.Module):
             points, fpn_masks,
             out_cls_logits, out_offsets,
             out_lb_logits, out_rb_logits,
+            out_iou_logits=None,
     ):
         # video_list B (list) [dict]
         # points F (list) [T_i, 4]
@@ -872,11 +1185,18 @@ class TriDet(nn.Module):
                 lb_logits_per_vid = [None for x in range(len(out_cls_logits))]
                 rb_logits_per_vid = [None for x in range(len(out_cls_logits))]
 
+            # gather per-video IoU logits
+            if self.use_iou_head:
+                iou_logits_per_vid = [x[idx] for x in out_iou_logits]
+            else:
+                iou_logits_per_vid = [None for x in range(len(out_cls_logits))]
+
             # inference on a single video (should always be the case)
             results_per_vid = self.inference_single_video(
                 points, fpn_masks_per_vid,
                 cls_logits_per_vid, offsets_per_vid,
-                lb_logits_per_vid, rb_logits_per_vid
+                lb_logits_per_vid, rb_logits_per_vid,
+                iou_logits_per_vid,
             )
             # pass through video meta info
             results_per_vid['video_id'] = vidx
@@ -898,7 +1218,8 @@ class TriDet(nn.Module):
             fpn_masks,
             out_cls_logits,
             out_offsets,
-            lb_logits_per_vid, rb_logits_per_vid
+            lb_logits_per_vid, rb_logits_per_vid,
+            iou_logits_per_vid=None,
     ):
         """对单视频做推理（不包含 NMS 后处理）。
 
@@ -924,10 +1245,15 @@ class TriDet(nn.Module):
         cls_idxs_all = []
 
         # loop over fpn levels
-        for cls_i, offsets_i, pts_i, mask_i, sb_cls_i, eb_cls_i in zip(
+        for lvl_idx, (cls_i, offsets_i, pts_i, mask_i, sb_cls_i, eb_cls_i) in enumerate(zip(
                 out_cls_logits, out_offsets, points, fpn_masks, lb_logits_per_vid, rb_logits_per_vid
-        ):
-            pred_prob = (cls_i.sigmoid() * mask_i.unsqueeze(-1)).flatten()
+        )):
+            # fuse classification and IoU confidence
+            if iou_logits_per_vid is not None and iou_logits_per_vid[0] is not None:
+                iou_i = iou_logits_per_vid[lvl_idx]  # [T_i, 1]
+                pred_prob = (cls_i.sigmoid() * iou_i.sigmoid() * mask_i.unsqueeze(-1)).flatten()
+            else:
+                pred_prob = (cls_i.sigmoid() * mask_i.unsqueeze(-1)).flatten()
 
             # Apply filtering to make NMS faster following detectron2
             # 1. Keep seg with confidence score > a threshold

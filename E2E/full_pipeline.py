@@ -6,14 +6,14 @@ Video -> OpenCV frame extraction -> Optical flow -> I3D features (2048-dim)
       -> [optional] YOLO person detection + annotated video output
 
 Usage:
-    python scripts/full_pipeline.py \
+    python E2E/full_pipeline.py \
         --video id3shuju/shipin/01.mp4 \
         --config configs/id3_i3d.yaml \
         --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
         --output_dir result
 
     # With annotated video output:
-    python scripts/full_pipeline.py \
+    python E2E/full_pipeline.py \
         --video id3shuju/shipin/01.mp4 \
         --visualize
 """
@@ -35,11 +35,11 @@ from libs.core import load_config
 from libs.modeling import make_meta_arch
 
 # E2E module imports
-from E2E.loader import load_frames_from_video
-from E2E.flow import compute_optical_flow
-from E2E.features import build_windows, load_i3d_model, extract_features_for_video
-from E2E.inference import run_tridet_inference, save_results_txt, THUMOS14_LABEL_NAMES
-from E2E.visualizer import (
+from E2E.module.loader import load_frames_from_video
+from E2E.module.flow import compute_optical_flow
+from E2E.module.features import build_windows, load_i3d_model, extract_features_for_video
+from E2E.module.inference import run_tridet_inference, save_results_txt, THUMOS14_LABEL_NAMES
+from E2E.module.visualizer import (
     create_annotated_video,
     predictions_to_action_list,
 )

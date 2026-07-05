@@ -208,7 +208,12 @@ class SGPBlock(nn.Module):
             path_pdrop=0.0,  # drop path rate
             act_layer=nn.GELU,  # nonlinear activation used after conv, default ReLU,
             downsample_type='max',
-            init_conv_vars=1  # init gaussian variance for the weight
+            init_conv_vars=1,  # init gaussian variance for the weight
+            use_att=False,  # if to use channel attention
+            att_type='SE',  # attention type: 'SE' or 'ECA'
+            att_position='fusion',  # 'pre_fusion' | 'fusion' | 'mlp'
+            att_reduction=16,  # reduction ratio for SE
+            att_kernel_size=3,  # kernel size for ECA
     ):
         super().__init__()
         # must use odd sized kernel
@@ -275,6 +280,23 @@ class SGPBlock(nn.Module):
             self.drop_path_mlp = nn.Identity()
 
         self.act = act_layer()
+
+        # build channel attention if requested
+        if att_position == 'pre_fusion':
+            att_channels = n_embd
+        else:
+            att_channels = n_out if n_out is not None else n_embd
+        if use_att:
+            if att_type == 'SE':
+                self.att = SELayer(att_channels, reduction=att_reduction)
+            elif att_type == 'ECA':
+                self.att = ECALayer(att_channels, kernel_size=att_kernel_size)
+            else:
+                raise NotImplementedError(f"Unknown attention type: {att_type}")
+        else:
+            self.att = nn.Identity()
+        self.att_position = att_position
+
         self.reset_params(init_conv_vars=init_conv_vars)
 
     def reset_params(self, init_conv_vars=0):
@@ -318,6 +340,10 @@ class SGPBlock(nn.Module):
         ).detach()
 
         out = self.ln(x)
+
+        if self.att_position == 'pre_fusion':
+            out = self.att(out)
+
         psi = self.psi(out)
         fc = self.fc(out)
         convw = self.convw(out)
@@ -326,8 +352,14 @@ class SGPBlock(nn.Module):
         out = fc * phi + (convw + convkw) * psi + out
 
         out = x * out_mask + self.drop_path_out(out)
+
+        if self.att_position == 'fusion':
+            out = self.att(out)
+
         # FFN
         out = out + self.drop_path_mlp(self.mlp(self.gn(out)))
+        if self.att_position == 'mlp':
+            out = self.att(out)
 
         return out, out_mask.bool()
 
@@ -400,3 +432,40 @@ class AffineDropPath(nn.Module):
 
     def forward(self, x):
         return drop_path(self.scale * x, self.drop_prob, self.training)
+
+
+class SELayer(nn.Module):
+    """
+    Squeeze-and-Excitation channel attention (1D version).
+    """
+
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        self.fc = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Conv1d(channels, channels // reduction, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv1d(channels // reduction, channels, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        return x * self.fc(x)
+
+
+class ECALayer(nn.Module):
+    """
+    Efficient Channel Attention (1D version).
+    Uses a 1D conv across channels instead of FC layers.
+    """
+
+    def __init__(self, channels, kernel_size=3):
+        super().__init__()
+        self.conv = nn.Conv1d(1, 1, kernel_size, padding=kernel_size // 2, bias=False)
+        self.pool = nn.AdaptiveAvgPool1d(1)
+
+    def forward(self, x):
+        avg = self.pool(x)                     # (B, C, 1)
+        att = self.conv(avg.transpose(1, 2))   # (B, 1, 1) -> conv -> (B, 1, 1)
+        att = att.sigmoid().transpose(1, 2)    # (B, C, 1)
+        return x * att

@@ -5,7 +5,7 @@ labels + confidence scores on each frame, then writes an annotated video.
 
 Usage (standalone)::
 
-    from E2E.visualizer import create_annotated_video
+    from E2E.module.visualizer import create_annotated_video
 
     create_annotated_video(
         video_path="data/01.mp4",

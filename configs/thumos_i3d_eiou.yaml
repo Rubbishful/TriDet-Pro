@@ -2,8 +2,8 @@ dataset_name: thumos
 train_split: [ 'validation' ]
 val_split: [ 'test' ]
 dataset: {
-  json_file: ./data/thumos/annotations/thumos14.json,
-  feat_folder: ./data/thumos/i3d_features,
+  json_file: D:/Code/THUMOS14/thumos/annotations/thumos14.json,
+  feat_folder: D:/Code/THUMOS14/thumos/i3d_features,
   file_prefix: ~,
   file_ext: .npy,
   num_classes: 20,
@@ -26,12 +26,14 @@ model: {
   iou_weight_power: 0.2,
   use_trident_head: True,
   sgp_mlp_dim: 768,
-  input_noise: 0.0005
+  input_noise: 0.0005,
+  reg_loss_type: eiou,
+  reg_loss_kwargs: {},
 }
 opt: {
   learning_rate: 0.0001,
   warmup_epochs: 20,
-  epochs: 20,
+  epochs: 60,
   weight_decay: 0.025,
 }
 loader: {

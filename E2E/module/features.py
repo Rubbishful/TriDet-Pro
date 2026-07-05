@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from E2E.i3d import InceptionI3d
+from .i3d import InceptionI3d
 
 
 # ============================================================================

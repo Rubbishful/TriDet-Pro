@@ -1,0 +1,308 @@
+python .\data_exp.py --mode inference
+(PatternRecognition) PS D:\Code\Tridet> python .\data_exp.py --mode inference
+========================================================================
+  TriDet 数据流形状与意义展示
+========================================================================
+
+[配置加载]
+  max_seq_len 900 → 896 (对齐 32 的倍数)
+  config           : ./configs/thumos_i3d.yaml
+  fpn_type         : identity
+  use_trident_head : True
+  backbone_arch    : [2, 2, 5]
+  embd_dim         : 512
+  fpn_dim          : 512
+  head_dim         : 512
+  num_classes      : 20
+  max_seq_len      : 896
+  batch_size       : 1
+  AMP              : 启用
+
+  训练集样本数: 200
+  验证集样本数: 212
+
+  模型总参数: 15,989,604
+  可训练参数: 15,989,604
+
+────────────────────────────────────────────────────────────────────────
+  1. 数据集原始样本 (Dataset.__getitem__)
+────────────────────────────────────────────────────────────────────────
+
+  样本索引: 0
+  video_id : video_validation_0000051
+  duration : 169.8s
+  fps      : 30.00
+  feat_stride    : 4
+  feat_num_frames: 16
+
+  ── 原始字段形状 ──
+  feats: [2048 × 896]  torch.float32
+        (C=input_dim=2048, T=896) — I3D 逐帧特征
+  segments: [3 × 2]  torch.float32
+        (N_gt=3, 2) — GT 动作起止时刻 (特征网格坐标)
+  labels: [3]  torch.int64
+        (N_gt=3,) — GT 动作类别编号 (0~num_classes-1)
+
+────────────────────────────────────────────────────────────────────────
+  2. 预处理 (preprocessing)
+────────────────────────────────────────────────────────────────────────
+
+  输入: 1 个样本, 实际特征长度 T=896
+  max_seq_len 配置: 896
+  batched_inputs: [1 × 2048 × 896]  torch.float32
+        [B=1, C=input_dim, T=max_seq_len] — 右侧 zero-padding 到固定长度
+  batched_masks: [1 × 1 × 896]  torch.bool
+        [B=1, 1, T=max_seq_len] — True=有效位置, False=padding
+  batched_inputs (有效区域): min=-0.0022  max=2.5757  mean=0.1667  std=0.1652  nan=False  inf=False
+      padding 填充值: 0.4
+
+────────────────────────────────────────────────────────────────────────
+  3. Backbone & Neck
+────────────────────────────────────────────────────────────────────────
+
+  [Backbone: SGPBackbone]
+    输出 6 层特征 (1 原始 + 5 下采样):
+    Level 0 feats: [1 × 512 × 896]  torch.float32
+    Level 0 masks: [1 × 1 × 896]  torch.bool
+        [B=1, C=embd_dim=512, T_lvl=896]
+    Level 1 feats: [1 × 512 × 448]  torch.float32
+    Level 1 masks: [1 × 1 × 448]  torch.bool
+        [B=1, C=embd_dim=512, T_lvl=448]
+    Level 2 feats: [1 × 512 × 224]  torch.float32
+    Level 2 masks: [1 × 1 × 224]  torch.bool
+        [B=1, C=embd_dim=512, T_lvl=224]
+    Level 3 feats: [1 × 512 × 112]  torch.float32
+    Level 3 masks: [1 × 1 × 112]  torch.bool
+        [B=1, C=embd_dim=512, T_lvl=112]
+    Level 4 feats: [1 × 512 × 56]  torch.float32
+    Level 4 masks: [1 × 1 × 56]  torch.bool
+        [B=1, C=embd_dim=512, T_lvl=56]
+    Level 5 feats: [1 × 512 × 28]  torch.float32
+    Level 5 masks: [1 × 1 × 28]  torch.bool
+        [B=1, C=embd_dim=512, T_lvl=28]
+
+  [Neck: FPNIdentity]
+    输出 6 层 FPN 特征:
+    Level 0 feats: [1 × 512 × 896]  torch.float32
+    Level 0 masks: [1 × 1 × 896]  torch.bool
+        [B=1, C=fpn_dim=512, T_lvl=896]
+    Level 1 feats: [1 × 512 × 448]  torch.float32
+    Level 1 masks: [1 × 1 × 448]  torch.bool
+        [B=1, C=fpn_dim=512, T_lvl=448]
+    Level 2 feats: [1 × 512 × 224]  torch.float32
+    Level 2 masks: [1 × 1 × 224]  torch.bool
+        [B=1, C=fpn_dim=512, T_lvl=224]
+    Level 3 feats: [1 × 512 × 112]  torch.float32
+    Level 3 masks: [1 × 1 × 112]  torch.bool
+        [B=1, C=fpn_dim=512, T_lvl=112]
+    Level 4 feats: [1 × 512 × 56]  torch.float32
+    Level 4 masks: [1 × 1 × 56]  torch.bool
+        [B=1, C=fpn_dim=512, T_lvl=56]
+    Level 5 feats: [1 × 512 × 28]  torch.float32
+    Level 5 masks: [1 × 1 × 28]  torch.bool
+        [B=1, C=fpn_dim=512, T_lvl=28]
+
+────────────────────────────────────────────────────────────────────────
+  4. Point Generator (锚点坐标)
+────────────────────────────────────────────────────────────────────────
+
+  共 6 层 FPN 锚点:
+
+    FPN Level 0:
+    points: [896 × 4]  torch.float32
+        [T_lvl=896, 4] — 每行是一个锚点
+          列 0: t_position   — 锚点在特征网格中的时间位置 (0~T_lvl-1)
+          列 1: reg_range_min — 该锚点负责的最小回归距离
+          列 2: reg_range_max — 该锚点负责的最大回归距离
+          列 3: stride        — 该层特征对应的时间跨度 (用于解码)
+          示例前 3 点:
+            pt[0]: pos=0  reg=[0, 4]  stride=1
+            pt[1]: pos=1  reg=[0, 4]  stride=1
+            pt[2]: pos=2  reg=[0, 4]  stride=1
+
+    FPN Level 1:
+    points: [448 × 4]  torch.float32
+        [T_lvl=448, 4] — 每行是一个锚点
+          列 0: t_position   — 锚点在特征网格中的时间位置 (0~T_lvl-1)
+          列 1: reg_range_min — 该锚点负责的最小回归距离
+          列 2: reg_range_max — 该锚点负责的最大回归距离
+          列 3: stride        — 该层特征对应的时间跨度 (用于解码)
+          示例前 3 点:
+            pt[0]: pos=0  reg=[4, 8]  stride=2
+            pt[1]: pos=2  reg=[4, 8]  stride=2
+            pt[2]: pos=4  reg=[4, 8]  stride=2
+
+    FPN Level 2:
+    points: [224 × 4]  torch.float32
+        [T_lvl=224, 4] — 每行是一个锚点
+          列 0: t_position   — 锚点在特征网格中的时间位置 (0~T_lvl-1)
+          列 1: reg_range_min — 该锚点负责的最小回归距离
+          列 2: reg_range_max — 该锚点负责的最大回归距离
+          列 3: stride        — 该层特征对应的时间跨度 (用于解码)
+          示例前 3 点:
+            pt[0]: pos=0  reg=[8, 16]  stride=4
+            pt[1]: pos=4  reg=[8, 16]  stride=4
+            pt[2]: pos=8  reg=[8, 16]  stride=4
+
+    FPN Level 3:
+    points: [112 × 4]  torch.float32
+        [T_lvl=112, 4] — 每行是一个锚点
+          列 0: t_position   — 锚点在特征网格中的时间位置 (0~T_lvl-1)
+          列 1: reg_range_min — 该锚点负责的最小回归距离
+          列 2: reg_range_max — 该锚点负责的最大回归距离
+          列 3: stride        — 该层特征对应的时间跨度 (用于解码)
+          示例前 3 点:
+            pt[0]: pos=0  reg=[16, 32]  stride=8
+            pt[1]: pos=8  reg=[16, 32]  stride=8
+            pt[2]: pos=16  reg=[16, 32]  stride=8
+
+    FPN Level 4:
+    points: [56 × 4]  torch.float32
+        [T_lvl=56, 4] — 每行是一个锚点
+          列 0: t_position   — 锚点在特征网格中的时间位置 (0~T_lvl-1)
+          列 1: reg_range_min — 该锚点负责的最小回归距离
+          列 2: reg_range_max — 该锚点负责的最大回归距离
+          列 3: stride        — 该层特征对应的时间跨度 (用于解码)
+          示例前 3 点:
+            pt[0]: pos=0  reg=[32, 64]  stride=16
+            pt[1]: pos=16  reg=[32, 64]  stride=16
+            pt[2]: pos=32  reg=[32, 64]  stride=16
+
+    FPN Level 5:
+    points: [28 × 4]  torch.float32
+        [T_lvl=28, 4] — 每行是一个锚点
+          列 0: t_position   — 锚点在特征网格中的时间位置 (0~T_lvl-1)
+          列 1: reg_range_min — 该锚点负责的最小回归距离
+          列 2: reg_range_max — 该锚点负责的最大回归距离
+          列 3: stride        — 该层特征对应的时间跨度 (用于解码)
+          示例前 3 点:
+            pt[0]: pos=0  reg=[64, 10000]  stride=32
+            pt[1]: pos=32  reg=[64, 10000]  stride=32
+            pt[2]: pos=64  reg=[64, 10000]  stride=32
+
+  总锚点数: 1764
+
+────────────────────────────────────────────────────────────────────────
+  5. Heads (分类头 / 回归头 / Trident 边界头)
+────────────────────────────────────────────────────────────────────────
+
+  [ClsHead — 动作分类]
+    Level 0 logits: [1 × 20 × 896]  torch.float32
+        [B=1, num_classes=20, T_lvl=896] — 每个锚点的类别 logits (含背景)
+    Level 1 logits: [1 × 20 × 448]  torch.float32
+        [B=1, num_classes=20, T_lvl=448] — 每个锚点的类别 logits (含背景)
+    Level 2 logits: [1 × 20 × 224]  torch.float32
+        [B=1, num_classes=20, T_lvl=224] — 每个锚点的类别 logits (含背景)
+    Level 3 logits: [1 × 20 × 112]  torch.float32
+        [B=1, num_classes=20, T_lvl=112] — 每个锚点的类别 logits (含背景)
+    Level 4 logits: [1 × 20 × 56]  torch.float32
+        [B=1, num_classes=20, T_lvl=56] — 每个锚点的类别 logits (含背景)
+    Level 5 logits: [1 × 20 × 28]  torch.float32
+        [B=1, num_classes=20, T_lvl=28] — 每个锚点的类别 logits (含背景)
+
+  [RegHead — 边界回归]
+    Trident 模式: 输出通道 = 2 × (num_bins+1) = 2 × 17 = 34
+    Level 0 offsets: [1 × 34 × 896]  torch.float32
+        [B=1, 34, T_lvl=896] — (左bin分布, 右bin分布) 各 17 个bin
+    Level 1 offsets: [1 × 34 × 448]  torch.float32
+        [B=1, 34, T_lvl=448] — (左bin分布, 右bin分布) 各 17 个bin
+    Level 2 offsets: [1 × 34 × 224]  torch.float32
+        [B=1, 34, T_lvl=224] — (左bin分布, 右bin分布) 各 17 个bin
+    Level 3 offsets: [1 × 34 × 112]  torch.float32
+        [B=1, 34, T_lvl=112] — (左bin分布, 右bin分布) 各 17 个bin
+    Level 4 offsets: [1 × 34 × 56]  torch.float32
+        [B=1, 34, T_lvl=56] — (左bin分布, 右bin分布) 各 17 个bin
+    Level 5 offsets: [1 × 34 × 28]  torch.float32
+        [B=1, 34, T_lvl=28] — (左bin分布, 右bin分布) 各 17 个bin
+
+  [TridentHead — 细粒度边界分布 (num_bins=16)]
+    Level 0 left_bin_logits: [1 × 20 × 896]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=896] — 左边界 bin 分布
+    Level 0 right_bin_logits: [1 × 20 × 896]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=896] — 右边界 bin 分布
+    Level 1 left_bin_logits: [1 × 20 × 448]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=448] — 左边界 bin 分布
+    Level 1 right_bin_logits: [1 × 20 × 448]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=448] — 右边界 bin 分布
+    Level 2 left_bin_logits: [1 × 20 × 224]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=224] — 左边界 bin 分布
+    Level 2 right_bin_logits: [1 × 20 × 224]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=224] — 右边界 bin 分布
+    Level 3 left_bin_logits: [1 × 20 × 112]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=112] — 左边界 bin 分布
+    Level 3 right_bin_logits: [1 × 20 × 112]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=112] — 右边界 bin 分布
+    Level 4 left_bin_logits: [1 × 20 × 56]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=56] — 左边界 bin 分布
+    Level 4 right_bin_logits: [1 × 20 × 56]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=56] — 右边界 bin 分布
+    Level 5 left_bin_logits: [1 × 20 × 28]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=28] — 左边界 bin 分布
+    Level 5 right_bin_logits: [1 × 20 × 28]  torch.float32
+        [B=1, num_bins+1=20, T_lvl=28] — 右边界 bin 分布
+
+  推理样本: video_test_0000004 (时长 33.8s)
+
+────────────────────────────────────────────────────────────────────────
+  8. 推理模式 (model.forward → results)
+────────────────────────────────────────────────────────────────────────
+[NMS] Using C extension backend (nms_1d_cpu)
+
+  检出视频数: 1
+
+  ── 推理输出字段 ──
+    video_id: 'video_test_0000004'
+    segments: [945 × 2]  torch.float32
+    scores: [945]  torch.float32
+    labels: [945]  torch.int64
+
+  ── 各字段意义 ──
+    video_id  : 视频标识符
+    segments  : [M, 2] — 检测到的动作段 (秒), M=945
+    scores    : [M]    — 置信度分数 (sigmoid 后的最大类别概率)
+    labels    : [M]    — 预测类别编号 (0~num_classes-1)
+
+  ── 检出示例 (置信度 top-5) ──
+    #1: [  -0.0s,    2.7s]  score=0.0263  class=14
+    #2: [  28.4s,   30.7s]  score=0.0256  class=14
+    #3: [  -0.0s,    5.8s]  score=0.0240  class=5
+    #4: [  -0.0s,   22.3s]  score=0.0225  class=12
+    #5: [  -0.0s,    2.7s]  score=0.0224  class=17
+
+────────────────────────────────────────────────────────────────────────
+  总结: 完整数据流
+────────────────────────────────────────────────────────────────────────
+
+    Dataset.__getitem__
+      │  feats: [C, T_raw]  I3D逐帧特征
+      │  segments: [N, 2]   GT动作段 (特征网格坐标)
+      │  labels:   [N]      GT类别编号
+      ▼
+    preprocessing(video_list)
+      │  batched_inputs: [B, C, T=max_seq_len]  Zero-pad到固定长度
+      │  batched_masks:  [B, 1, T]              有效位置掩码
+      ▼
+    Backbone (SGPBackbone)
+      │  feats:  [B, embd_dim, T/scale_factor]   SGP下采样特征
+      │  masks:  [B, 1, T/scale_factor]
+      ▼
+    Neck (FPN1D / BiFPN1D)
+      │  fpn_feats: List[F] of [B, fpn_dim, T_f]  多尺度特征金字塔
+      │  fpn_masks: List[F] of [B, 1, T_f]
+      ▼
+    Point Generator
+      │  points: List[F] of [T_f, 4]             锚点坐标/范围/stride
+      ▼
+    ┌─────────────────┬─────────────────┬──────────────────┐
+    ClsHead           RegHead           TridentHead (可选)
+    [B, T_f, #cls]    [B, T_f, 2]       [B, T_f, #bins+1]
+    每个锚点类别logits  左右偏移量         边界bin分布
+    └─────────────────┴─────────────────┴──────────────────┘
+      ▼
+    [Training]                    [Inference]
+    label_points → GT分配          解码 → NMS → 最终段
+    losses → cls + reg × weight    segments [M,2], scores [M]
+
+========================================================================
+  展示完成
+========================================================================

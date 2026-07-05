@@ -9,8 +9,8 @@ Workflow:
   5. Export per-video detection results
 
 Usage:
-  python scripts/batch_pipeline.py \
-      --video_dir ./data/videos\ \
+  python E2E/batch_pipeline.py \
+      --video_dir ./data/videos/ \
       --output_dir ./result/ \
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \
       --device cuda:0
@@ -46,14 +46,14 @@ _PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
 sys.path.insert(0, _PROJECT_ROOT)
 sys.path.insert(0, _SCRIPT_DIR)
 
-from E2E.features import (
+from E2E.module.features import (
     build_windows,
     extract_features_for_video,
     load_i3d_model,
 )
-from E2E.flow import compute_optical_flow
-from E2E.loader import load_frames_from_video
-from E2E.visualizer import (
+from E2E.module.flow import compute_optical_flow
+from E2E.module.loader import load_frames_from_video
+from E2E.module.visualizer import (
     create_annotated_video,
     filter_actions_by_video,
 )
@@ -573,13 +573,13 @@ def main():
         epilog="""
 Examples:
   # Basic: process all videos in folder
-  python scripts/batch_pipeline.py \\
+  python E2E/batch_pipeline.py \\
       --video_dir ./my_videos \\
       --output_dir ./pipeline_output \\
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar
 
   # With custom model weights
-  python scripts/batch_pipeline.py \\
+  python E2E/batch_pipeline.py \\
       --video_dir ./videos \\
       --output_dir ./results \\
       --ckpt ckpt/thumos_i3d_baseline/epoch_039.pth.tar \\
@@ -587,7 +587,7 @@ Examples:
       --flow_model E2E/model/flow_imagenet.pt
 
 Input format:
-  python scripts/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --ckpt <weights>
+  python E2E/batch_pipeline.py --video_dir <input_folder> --output_dir <output_folder> --ckpt <weights>
         """
     )
 
