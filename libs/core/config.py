@@ -117,6 +117,9 @@ DEFAULTS = {
         "tal_alpha": 1.0,
         "tal_beta": 4.0,
         "tal_start_epoch": 5,
+        # UM norm gating (suppress background via feature L2 norm)
+        "um_gate_enabled": False,
+        "um_gate_m": 1.0,
 
     },
     "train_cfg": {

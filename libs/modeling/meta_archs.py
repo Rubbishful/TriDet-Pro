@@ -322,6 +322,8 @@ class TriDet(nn.Module):
             tal_alpha=1.0,  # cls score exponent in TAL alignment
             tal_beta=4.0,  # IoU exponent in TAL alignment
             tal_start_epoch=5,  # epoch to start TAL
+            um_gate_enabled=False,  # enable UM feature-norm gating
+            um_gate_m=1.0,  # norm clamping upper bound for UM gate
     ):
         super().__init__()
         # re-distribute params to backbone / neck / head
@@ -376,6 +378,10 @@ class TriDet(nn.Module):
         self.tal_beta = tal_beta
         self.tal_start_epoch = tal_start_epoch
         self.current_epoch = 0
+
+        # UM norm gating: suppress background via feature L2 norm (inference only)
+        self.um_gate_enabled = um_gate_enabled
+        self.um_gate_m = um_gate_m
 
         # test time config
         self.test_pre_nms_thresh = test_cfg['pre_nms_thresh']
@@ -653,6 +659,12 @@ class TriDet(nn.Module):
             out_iou_logits = [x.permute(0, 2, 1) for x in out_iou_logits]
         # fpn_masks: F list[B, 1, T_i] -> F List[B, T_i]
         fpn_masks = [x.squeeze(1) for x in fpn_masks]
+
+        # ---- UM norm gating: suppress background via feature L2 norm ----
+        # Applied in both train and inference to let the model learn diagnostic features
+        if self.um_gate_enabled:
+            out_cls_logits = self._apply_um_gate(fpn_feats, out_cls_logits)
+        # ----------------------------------------------------------------
 
         # return loss during training
         if self.training:
@@ -1381,3 +1393,33 @@ class TriDet(nn.Module):
             )
 
         return processed_results
+
+    def _apply_um_gate(self, fpn_feats, out_cls_logits):
+        """Apply UM feature-norm gating to classification logits.
+
+        For each FPN level, computes the L2 norm of fpn_feats along the channel
+        dimension, clamps and normalises to [0,1], then multiplies into the
+        sigmoid-probability space.  The gated probabilities are mapped back to
+        logit space via inverse sigmoid so that downstream inference code
+        (which calls .sigmoid()) sees the gated scores.
+
+        Args:
+            fpn_feats: Tuple[L] of (B, C_feat, T_i)
+            out_cls_logits: Tuple[L] of (B, T_i, num_classes)  -- after permute
+        Returns:
+            gated_logits: Tuple[L] of (B, T_i, num_classes)
+        """
+        m = self.um_gate_m
+        gated = tuple()
+        for feat, logit in zip(fpn_feats, out_cls_logits):
+            # feat:  (B, C_feat, T_i)
+            # logit: (B, T_i, num_classes)
+            norm = torch.norm(feat, dim=1)               # [B, T_i]
+            uncertainty = norm.clamp(max=m) / m          # [B, T_i]  in [0, 1]
+            score = logit.sigmoid()                      # [B, T_i, C]
+            gated_score = score * uncertainty.unsqueeze(-1)
+            gated_score = gated_score.clamp(1e-7, 1 - 1e-7)
+            # inverse sigmoid back to logit space
+            gated_logit = torch.log(gated_score / (1.0 - gated_score))
+            gated += (gated_logit,)
+        return gated
