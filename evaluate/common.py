@@ -178,3 +178,154 @@ def compute_mAP_offline(preds_list, json_file, split='test',
     df = pd.DataFrame(records)
     mAP, avg_mAP = det_eval.evaluate(df, verbose=False)
     return mAP, avg_mAP
+
+
+# ============================================================
+# 统一数据发现与加载
+# ============================================================
+
+# 已知 CSV 文件名 → 类型映射
+_CSV_TYPES = {
+    'ablation_results.csv':       'ablation',
+    'structural_improvements.csv': 'structural',
+    'iou_head_iterations.csv':     'iou_head',
+    'iou_grid_search.csv':         'iou_grid',
+    'global_improvements.csv':     'global',
+}
+
+
+def discover_csvs(results_dir=None):
+    """自动扫描 evaluate/results/ 下所有已知 CSV.
+    返回: {csv_type: Path, ...}.
+    """
+    if results_dir is None:
+        results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+    found = {}
+    for fname, ctype in _CSV_TYPES.items():
+        path = os.path.join(results_dir, fname)
+        if os.path.exists(path):
+            found[ctype] = path
+    return found
+
+
+def _parse_num_safe(s):
+    """安全解析数值, 失败返回 None."""
+    if s is None or str(s).strip() == '':
+        return None
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_bool_safe(s):
+    """解析布尔字符串."""
+    if s is None:
+        return None
+    s = str(s).strip().lower()
+    if s in ('true', '1', 'yes'):
+        return True
+    if s in ('false', '0', 'no', ''):
+        return False
+    return None
+
+
+def load_all_results(results_dir=None):
+    """统一加载所有 CSV → 标准化结构.
+    返回: {
+        'experiments': {exp_id: {...}},  # 所有实验
+        'sources': {exp_id: csv_type},   # 每个实验的来源 CSV 类型
+        'csv_types': {csv_type: path},   # 发现的 CSV 列表
+    }
+    每个实验 dict 的字段:
+        exp_id, group, name, source_type,
+        mAP_03, mAP_05, mAP_07, avg_mAP,
+        train_time, status, timestamp,
+        params: {param_name: value, ...}  # 网格搜索特有参数
+    """
+    csvs = discover_csvs(results_dir)
+    all_exps = {}
+    sources = {}
+
+    for csv_type, csv_path in csvs.items():
+        if not os.path.exists(csv_path):
+            continue
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                exp_id = (row.get('实验编号') or row.get('id') or '').strip()
+                if not exp_id:
+                    continue
+
+                # 标准化字段
+                exp = {
+                    'exp_id': exp_id,
+                    'group': row.get('分组', row.get('group', '')),
+                    'name': row.get('配置变更', row.get('name', row.get('config_desc', ''))),
+                    'source_type': csv_type,
+                    'mAP_03': _parse_num_safe(row.get('mAP@0.3')),
+                    'mAP_05': _parse_num_safe(row.get('mAP@0.5')),
+                    'mAP_07': _parse_num_safe(row.get('mAP@0.7')),
+                    'avg_mAP': _parse_num_safe(row.get('avg_mAP')),
+                    'train_time': row.get('训练时间(min)', row.get('train_time', '')),
+                    'status': row.get('状态', row.get('status', '')),
+                    'timestamp': row.get('时间戳', row.get('timestamp', '')),
+                    'params': {},
+                }
+
+                # 提取实验特定参数
+                if csv_type == 'iou_grid':
+                    for pname in ['loss_weight', 'per_level', 'residual', 'layers']:
+                        val = row.get(pname, '')
+                        if pname in ('loss_weight', 'layers'):
+                            exp['params'][pname] = _parse_num_safe(val)
+                        elif pname in ('per_level', 'residual'):
+                            exp['params'][pname] = _parse_bool_safe(val)
+                elif csv_type == 'ablation':
+                    # ablation CSV 可能包含 '排名' 列 (当被 aggregate_global 处理过)
+                    pass
+
+                all_exps[exp_id] = exp
+                sources[exp_id] = csv_type
+
+    return {
+        'experiments': all_exps,
+        'sources': sources,
+        'csv_types': csvs,
+    }
+
+
+def classify_experiments(all_results):
+    """按来源分组实验.
+    返回: {
+        'ablation':    [exp, ...],
+        'structural':  [exp, ...],
+        'iou_head':    [exp, ...],
+        'iou_grid':    [exp, ...],
+        'other':       [exp, ...],
+    }
+    """
+    exps = all_results.get('experiments', {})
+    groups = {'ablation': [], 'structural': [], 'iou_head': [],
+              'iou_grid': [], 'other': []}
+    for eid, exp in exps.items():
+        st = exp.get('source_type', 'other')
+        if st in groups:
+            groups[st].append(exp)
+        else:
+            groups['other'].append(exp)
+    return groups
+
+
+def get_valid_experiments(all_results, min_avg_mAP=None):
+    """获取有效实验 (status OK 且 avg_mAP 存在).
+    可选按 min_avg_mAP 过滤.
+    """
+    exps = all_results.get('experiments', {})
+    valid = []
+    for eid, exp in exps.items():
+        if exp.get('avg_mAP') is not None:
+            if min_avg_mAP is None or exp['avg_mAP'] >= min_avg_mAP:
+                valid.append(exp)
+    valid.sort(key=lambda x: -(x.get('avg_mAP') or -999))
+    return valid
