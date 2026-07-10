@@ -55,6 +55,7 @@ from E2E.module.flow import compute_optical_flow
 from E2E.module.loader import load_frames_from_video
 from E2E.module.visualizer import (
     create_annotated_video,
+    extract_keyframes,
     filter_actions_by_video,
 )
 from libs.core import load_config
@@ -643,6 +644,10 @@ Input format:
                         help="YOLO confidence threshold (default: 0.3)")
     viz_group.add_argument("--no_timeline", action="store_true", default=False,
                         help="Disable the bottom timeline strip in output video")
+    viz_group.add_argument("--save_keyframes", action="store_true", default=False,
+                        help="Save top-K keyframe images (requires --visualize)")
+    viz_group.add_argument("--keyframe_top_k", type=int, default=5,
+                        help="Max keyframes to save per video (default: 5)")
 
     args = parser.parse_args()
 
@@ -754,6 +759,21 @@ Input format:
                     show_timeline=not args.no_timeline,
                     progress=False,  # too noisy in batch mode
                 )
+
+                # Keyframe extraction
+                if args.save_keyframes:
+                    kf_paths = extract_keyframes(
+                        video_path=video_path,
+                        action_results=actions,
+                        output_dir=output_dir,
+                        video_name=video_id,
+                        detector=detector,
+                        conf_threshold=args.yolo_conf,
+                        top_k=args.keyframe_top_k,
+                    )
+                    if kf_paths:
+                        print(f"    [KF] {len(kf_paths)} keyframes saved")
+
                 n_done += 1
             except Exception as e:
                 print(f"  [ERROR] {video_id}: {e}")
