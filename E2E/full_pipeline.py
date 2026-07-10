@@ -112,6 +112,10 @@ def main():
                         help="YOLO confidence threshold (default: 0.3)")
     viz_group.add_argument("--no_timeline", action="store_true", default=False,
                         help="Disable the bottom timeline strip in output video")
+    viz_group.add_argument("--save_keyframes", action="store_true", default=False,
+                        help="Save top-K keyframe images (requires --visualize)")
+    viz_group.add_argument("--keyframe_top_k", type=int, default=5,
+                        help="Max keyframes to save (default: 5)")
 
     args = parser.parse_args()
 
@@ -373,7 +377,24 @@ def main():
             progress=True,
         )
 
-        print(f"         Done in {time.time() - t6:.1f}s")
+        # Keyframe extraction
+        if args.save_keyframes:
+            from E2E.module.visualizer import extract_keyframes
+            print(f"\n[KF] Extracting up to {args.keyframe_top_k} keyframes...")
+            kf_paths = extract_keyframes(
+                video_path=video_path,
+                action_results=action_list,
+                output_dir=output_dir,
+                video_name=vid_name,
+                detector=detector,
+                conf_threshold=args.yolo_conf,
+                top_k=args.keyframe_top_k,
+            )
+            print(f"[KF] Saved {len(kf_paths)} keyframes")
+            for p in kf_paths:
+                print(f"       {p}")
+
+        print(f"\n         Done in {time.time() - t6:.1f}s")
 
     overall_end = time.time()
     print("\n" + "=" * 60)

@@ -20,9 +20,42 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-matplotlib.rcParams['font.family'] = 'sans-serif'
-matplotlib.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'DejaVu Sans']
-matplotlib.rcParams['axes.unicode_minus'] = False
+# =====================================================
+# Publication-style matplotlib configuration
+# =====================================================
+PALETTE = {
+    "blue_main":      "#0F4D92",
+    "blue_secondary": "#3775BA",
+    "green_3":        "#8BCF8B",
+    "red_strong":     "#B64342",
+    "red_1":          "#F6CFCB",
+    "teal":           "#42949E",
+    "violet":         "#9A4D8E",
+    "neutral":        "#CFCECE",
+    "highlight":      "#FFD700",
+    "orange":         "#E67E22",
+    "dark":           "#2C3E50",
+}
+
+def _apply_style():
+    """Configure matplotlib rcParams for publication-quality figures."""
+    plt.rcParams.update({
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Microsoft YaHei", "Arial", "Helvetica", "DejaVu Sans", "sans-serif"],
+        "font.size": 14,
+        "axes.spines.right": False,
+        "axes.spines.top": False,
+        "axes.linewidth": 2.0,
+        "axes.unicode_minus": False,
+        "legend.frameon": False,
+        "legend.fontsize": 11,
+        "svg.fonttype": "none",
+        "savefig.dpi": 300,
+        "savefig.bbox": "tight",
+        "savefig.pad_inches": 0.05,
+    })
+
+_apply_style()
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
@@ -92,15 +125,15 @@ def run_confusion_analysis(gts, label_names, pred_by_vid, tiou_thresh=0.5, out_p
     ax.set_yticks(range(num_classes))
     ax.set_xticklabels(labels, rotation=90, fontsize=7)
     ax.set_yticklabels(labels, fontsize=7)
-    ax.set_xlabel('Predicted Label', fontsize=13)
-    ax.set_ylabel('Ground Truth Label', fontsize=13)
-    ax.set_title('THUMOS14 Confusion Matrix', fontsize=14)
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label('Fraction of GT', fontsize=11)
-    plt.tight_layout()
+    ax.set_xlabel('预测类别', fontsize=13)
+    ax.set_ylabel('真实类别', fontsize=13)
+    ax.set_title('THUMOS14 混淆矩阵', fontsize=14)
+    cbar = plt.colorbar(im, ax=ax, shrink=0.82, fraction=0.046)
+    cbar.set_label('GT 占比', fontsize=11)
+    plt.tight_layout(pad=2)
 
     out = out_path or os.path.join(RESULT_DIR, 'confusion_matrix.png')
-    plt.savefig(out, dpi=150)
+    plt.savefig(out, dpi=300)
     plt.close()
     print(f"  图表: {out}")
     return cm
@@ -197,36 +230,36 @@ def run_density_analysis(gts, pred_by_vid, tiou_thresh=0.5, out_path=None):
 
     # 柱状图
     fig, ax = plt.subplots(figsize=(8, 5))
-    colors = ['#2ecc71', '#3498db', '#f39c12', '#e74c3c']
-    bars = ax.bar(labels, values, color=colors, edgecolor='white')
+    colors = [PALETTE["green_3"], PALETTE["teal"], PALETTE["orange"], PALETTE["red_strong"]]
+    bars = ax.bar(labels, values, color=colors, edgecolor='black', linewidth=1.0)
     for bar, val in zip(bars, values):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
-                f'{val:.1f}%', ha='center', fontsize=12)
+                f'{val:.1f}%', ha='center', fontsize=14)
     ax.set_ylabel('mAP (%)', fontsize=13)
-    ax.set_title(f'mAP by Video Density (tIoU={tiou_thresh})', fontsize=14)
-    ax.set_ylim(0, max(values) * 1.2 + 2 if max(values) > 0 else 100)
-    plt.tight_layout()
+    ax.set_title(f'视频密度分层 mAP (tIoU={tiou_thresh})', fontsize=14)
+    ax.set_ylim(0, max(values) * 1.15 + 2 if max(values) > 0 else 100)
+    plt.tight_layout(pad=2)
 
     out = out_path or os.path.join(RESULT_DIR, 'density_analysis.png')
-    plt.savefig(out, dpi=150)
+    plt.savefig(out, dpi=300)
     plt.close()
     print(f"  图表: {out}")
 
     # 密度分布直方图
     densities = [len(gt_list) for gt_list in gts.values()]
     fig2, ax2 = plt.subplots(figsize=(8, 4))
-    ax2.hist(densities, bins=20, edgecolor='white', color='#3498db')
-    ax2.axvline(np.mean(densities), color='#e74c3c', linestyle='--', linewidth=2,
-                label=f'Mean={np.mean(densities):.1f}')
-    ax2.set_xlabel('GT instances per video', fontsize=13)
-    ax2.set_ylabel('Video count', fontsize=13)
-    ax2.set_title('Action Density Distribution', fontsize=14)
+    ax2.hist(densities, bins=20, edgecolor='black', linewidth=0.8, color=PALETTE["teal"])
+    ax2.axvline(np.mean(densities), color=PALETTE["red_strong"], linestyle='--', linewidth=2,
+                label=f'均值={np.mean(densities):.1f}')
+    ax2.set_xlabel('每视频 GT 实例数', fontsize=13)
+    ax2.set_ylabel('视频数量', fontsize=13)
+    ax2.set_title('动作密度分布', fontsize=14)
     ax2.legend()
-    plt.tight_layout()
+    plt.tight_layout(pad=2)
 
     hist_out = out_path.replace('.png', '_hist.png') if out_path else \
         os.path.join(RESULT_DIR, 'density_hist.png')
-    plt.savefig(hist_out, dpi=150)
+    plt.savefig(hist_out, dpi=300)
     plt.close()
     print(f"  图表: {hist_out}")
 
@@ -290,18 +323,18 @@ def run_duration_analysis(gts, pred_by_vid, tiou_thresh=0.5, out_path=None):
 
     # 柱状图
     fig, ax = plt.subplots(figsize=(8, 5))
-    colors = ['#2ecc71', '#3498db', '#e74c3c']
-    bars = ax.bar(labels_dur, values_dur, color=colors, edgecolor='white')
+    colors = [PALETTE["green_3"], PALETTE["teal"], PALETTE["red_strong"]]
+    bars = ax.bar(labels_dur, values_dur, color=colors, edgecolor='black', linewidth=1.0)
     for bar, val in zip(bars, values_dur):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
-                f'{val:.1f}%', ha='center', fontsize=12)
-    ax.set_ylabel('Recall (%)', fontsize=13)
-    ax.set_title(f'Recall by Action Duration (tIoU={tiou_thresh})', fontsize=14)
-    ax.set_ylim(0, max(values_dur) * 1.2 + 5 if max(values_dur) > 0 else 100)
-    plt.tight_layout()
+                f'{val:.1f}%', ha='center', fontsize=14)
+    ax.set_ylabel('召回率 (%)', fontsize=13)
+    ax.set_title(f'动作时长分层 Recall (tIoU={tiou_thresh})', fontsize=14)
+    ax.set_ylim(0, max(values_dur) * 1.15 + 5 if max(values_dur) > 0 else 100)
+    plt.tight_layout(pad=2)
 
     out = out_path or os.path.join(RESULT_DIR, 'duration_analysis.png')
-    plt.savefig(out, dpi=150)
+    plt.savefig(out, dpi=300)
     plt.close()
     print(f"  图表: {out}")
 
@@ -339,51 +372,51 @@ def run_ablation_comparison(ablation_dir, out_dir=None):
 
     # 柱状图
     exp_order = ['baseline', 'A1', 'A2']
-    names = ['Baseline\nSGP + Trident-head',
-             'A1: w/o Trident\n(SGP only)',
-             'A2: w/o SGP*\n(Conv + Trident)']
+    names = ['基线\nSGP + Trident-head',
+             'A1: 移除 Trident\n(仅 SGP)',
+             'A2: 移除 SGP*\n(Conv + Trident)']
     vals = [summaries.get(eid, {}).get('avg_mAP', 0) for eid in exp_order]
-    colors = ['#2ecc71', '#3498db', '#e74c3c']
+    colors = [PALETTE["red_strong"], PALETTE["blue_main"], PALETTE["violet"]]
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    bars = ax.bar(range(len(exp_order)), vals, color=colors, edgecolor='white', width=0.5)
+    bars = ax.bar(range(len(exp_order)), vals, color=colors, edgecolor='black', linewidth=1.0, width=0.5)
     ax.set_xticks(range(len(exp_order)))
     ax.set_xticklabels(names, fontsize=10)
     for i, (bar, val) in enumerate(zip(bars, vals)):
         diff = val - vals[0]
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
-                f'{val:.2f}%\n({diff:+.2f}%)', ha='center', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Average mAP (%)', fontsize=13)
-    ax.set_title('Ablation Study: TriDet Component Breakdown', fontsize=14)
-    ax.set_ylim(0, max(vals) * 1.3 + 2)
-    plt.tight_layout()
+                f'{val:.2f}%\n({diff:+.2f}%)', ha='center', fontsize=14, fontweight='bold')
+    ax.set_ylabel('平均 mAP (%)', fontsize=13)
+    ax.set_title('消融实验：TriDet 组件拆解', fontsize=14)
+    ax.set_ylim(0, max(vals) * 1.15 + 2)
+    plt.tight_layout(pad=2)
 
     ab_path = os.path.join(out_dir, 'ablation_comparison.png')
-    plt.savefig(ab_path, dpi=150)
+    plt.savefig(ab_path, dpi=300)
     plt.close()
     print(f"  图表: {ab_path}")
 
     # tIoU 曲线
     fig2, ax2 = plt.subplots(figsize=(8, 5))
     tious = [0.3, 0.4, 0.5, 0.6, 0.7]
-    markers = [('baseline', '#2ecc71', 'D', 'Baseline'),
-               ('A1', '#3498db', 'o', 'A1: w/o Trident'),
-               ('A2', '#e74c3c', 's', 'A2: w/o SGP*')]
+    markers = [('baseline', PALETTE["red_strong"], 'D', '基线'),
+               ('A1', PALETTE["blue_main"], 'o', 'A1: 移除 Trident'),
+               ('A2', PALETTE["violet"], 's', 'A2: 移除 SGP*')]
     for eid, color, marker, label in markers:
         if eid in summaries:
             maps = [float(v) for v in summaries[eid]['mAP_per_tiou'].values()]
             ax2.plot(tious, maps, f'{marker}-', color=color, linewidth=2,
                     markersize=8, label=label)
 
-    ax2.set_xlabel('tIoU Threshold', fontsize=13)
+    ax2.set_xlabel('tIoU 阈值', fontsize=13)
     ax2.set_ylabel('mAP (%)', fontsize=13)
-    ax2.set_title('mAP vs tIoU — Component Ablation', fontsize=14)
+    ax2.set_title('mAP vs tIoU — 组件消融', fontsize=14)
     ax2.legend(fontsize=10)
-    ax2.grid(True, alpha=0.3)
-    plt.tight_layout()
+    ax2.grid(True, alpha=0.15, linewidth=0.5)
+    plt.tight_layout(pad=2)
 
     tiou_path = os.path.join(out_dir, 'map_vs_tiou.png')
-    plt.savefig(tiou_path, dpi=150)
+    plt.savefig(tiou_path, dpi=300)
     plt.close()
     print(f"  图表: {tiou_path}")
 

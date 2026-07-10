@@ -63,8 +63,8 @@ def _pick_color(label_str: str) -> Tuple[int, int, int]:
 def draw_yolo_boxes(frame_bgr: np.ndarray,
                     persons: List[Dict],
                     box_color: Tuple[int, int, int] = (0, 255, 0),
-                    thickness: int = 2,
-                    font_scale: float = 0.6) -> None:
+                    thickness: int = 1,
+                    font_scale: float = 0.4) -> None:
     """Draw YOLO person-detection bounding boxes onto *frame_bgr* (in-place).
 
     Args:
@@ -78,23 +78,33 @@ def draw_yolo_boxes(frame_bgr: np.ndarray,
     for p in persons:
         x1, y1, x2, y2 = map(int, p["bbox"])
         conf = p["confidence"]
-        cv2.rectangle(frame_bgr, (x1, y1), (x2, y2), box_color, thickness)
-        cv2.putText(frame_bgr, f"person {conf:.2f}",
-                    (x1, max(y1 - 8, 16)),
-                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, box_color, thickness)
+        # Color gradient by confidence: green (high) → orange (mid) → red (low)
+        if conf >= 0.7:
+            c = (0, 255, 0)      # green
+        elif conf >= 0.4:
+            t = (0.7 - conf) / 0.3  # 1→0 as conf goes 0.4→0.7
+            c = (int(255 * t), 255, 0)  # green→orange
+        else:
+            t = conf / 0.4         # 0→1 as conf goes 0→0.4
+            c = (0, int(255 * t), 255)  # red→orange
+        cv2.rectangle(frame_bgr, (x1, y1), (x2, y2), c, thickness)
+        cv2.putText(frame_bgr, f"{conf:.2f}",
+                    (x1, max(y1 - 6, 14)),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, c, thickness,
+                    cv2.LINE_AA)
 
 
 def draw_action_overlay(frame_bgr: np.ndarray,
                         active_actions: List[Dict],
-                        font_scale: float = 0.7,
-                        thickness: int = 2,
+                        font_scale: float = 0.5,
+                        thickness: int = 1,
                         top_margin: int = 10) -> None:
     """Draw active action labels in the top-left corner of *frame_bgr*.
 
     Args:
         frame_bgr: BGR image (H, W, 3), modified in-place.
         active_actions: List of dicts with ``label``, ``score``, ``start``,
-            ``end``.  Sorted by score descending; at most ~5 displayed.
+            ``end``.  Sorted by score descending; at most ~3 displayed.
         font_scale: OpenCV font scale.
         thickness: Line thickness.
         top_margin: Pixels from the top edge for the first label.
@@ -102,30 +112,35 @@ def draw_action_overlay(frame_bgr: np.ndarray,
     if not active_actions:
         return
 
-    y = top_margin + 25
+    y = top_margin + 22
+
+    # Header label
+    cv2.putText(frame_bgr, "Detected:", (10, top_margin + 16),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (180, 180, 180), 1, cv2.LINE_AA)
+
     for act in active_actions:
         color = _pick_color(act["label"])
-        text = (f"{act['label']}  {act['score']:.2f}  "
-                f"[{act['start']:.1f}s-{act['end']:.1f}s]")
+        text = f"{act['label']}  {act['score']:.2f}"
 
         # Draw semi-transparent background bar
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX,
                                        font_scale, thickness)
         overlay = frame_bgr.copy()
-        cv2.rectangle(overlay, (5, y - th - 6), (tw + 15, y + 6),
+        cv2.rectangle(overlay, (5, y - th - 4), (tw + 12, y + 4),
                       (40, 40, 40), -1)
-        cv2.addWeighted(overlay, 0.55, frame_bgr, 0.45, 0, frame_bgr)
+        cv2.addWeighted(overlay, 0.35, frame_bgr, 0.65, 0, frame_bgr)
 
         cv2.putText(frame_bgr, text, (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
-        y += th + 14
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness,
+                    cv2.LINE_AA)
+        y += th + 10
 
 
 def draw_timeline_strip(frame_bgr: np.ndarray,
                         all_actions: List[Dict],
                         current_time: float,
                         video_duration: float,
-                        strip_height: int = 60) -> None:
+                        strip_height: int = 48) -> None:
     """Draw a timeline bar at the bottom showing all action segments.
 
     Args:
@@ -138,14 +153,20 @@ def draw_timeline_strip(frame_bgr: np.ndarray,
     H, W = frame_bgr.shape[:2]
     y0 = H - strip_height
 
-    # Background
-    cv2.rectangle(frame_bgr, (0, y0), (W, H), (30, 30, 30), -1)
+    # Semi-transparent background overlay
+    overlay = frame_bgr.copy()
+    cv2.rectangle(overlay, (0, y0), (W, H), (25, 25, 25), -1)
+    cv2.addWeighted(overlay, 0.80, frame_bgr, 0.20, 0, frame_bgr)
+
+    # Top border line
+    cv2.line(frame_bgr, (0, y0), (W, y0), (80, 80, 80), 1)
 
     if video_duration <= 0:
         return
 
     # Scale: pixels per second
     scale = W / video_duration
+    gap = 1  # px gap between adjacent blocks
 
     # Draw each action segment
     for act in all_actions:
@@ -154,7 +175,12 @@ def draw_timeline_strip(frame_bgr: np.ndarray,
         x1 = max(0, min(W - 1, x1))
         x2 = max(x1 + 2, min(W, x2))
         color = _pick_color(act["label"])
-        cv2.rectangle(frame_bgr, (x1, y0 + 4), (x2, y0 + strip_height - 4),
+        # Lighter shade for the fill
+        light_color = tuple(min(255, int(c * 0.7 + 80)) for c in color)
+        cv2.rectangle(frame_bgr, (x1, y0 + 4), (x2 - gap, y0 + strip_height - 8),
+                      light_color, -1)
+        # Thin top accent on each block
+        cv2.rectangle(frame_bgr, (x1, y0 + 4), (x2 - gap, y0 + 6),
                       color, -1)
 
     # Current position cursor
@@ -164,11 +190,11 @@ def draw_timeline_strip(frame_bgr: np.ndarray,
 
     # Time markers
     cv2.putText(frame_bgr, "0s", (4, H - 6),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1, cv2.LINE_AA)
     dur_text = f"{video_duration:.0f}s"
     (tw, _), _ = cv2.getTextSize(dur_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
     cv2.putText(frame_bgr, dur_text, (W - tw - 4, H - 6),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1, cv2.LINE_AA)
 
 
 # ============================================================================
@@ -356,7 +382,7 @@ def create_annotated_video(
     *,
     detector=None,
     conf_threshold: float = 0.5,
-    max_display_actions: int = 5,
+    max_display_actions: int = 3,
     target_fps: Optional[float] = None,
     target_size: Optional[Tuple[int, int]] = None,
     show_timeline: bool = True,
@@ -493,3 +519,123 @@ def create_annotated_video(
         raise RuntimeError("No frames written to output video")
 
     return output_path
+
+
+# ============================================================================
+# Keyframe Extraction
+# ============================================================================
+
+def extract_keyframes(
+    video_path: str,
+    action_results: List[Dict],
+    output_dir: str,
+    video_name: str,
+    *,
+    detector=None,
+    conf_threshold: float = 0.5,
+    top_k: int = 5,
+) -> List[str]:
+    """Extract representative keyframe images for top action detections.
+
+    For each top-K action (ranked by confidence desc, then duration desc),
+    extracts the midpoint frame of the segment, draws annotations, and saves
+    as a JPEG image.
+
+    Args:
+        video_path: Path to the source video file.
+        action_results: Flat list of action dicts (``start``, ``end``,
+            ``label``, ``score``).
+        output_dir: Directory to save keyframe images.
+        video_name: Video name (used for directory and file naming).
+        detector: :class:`SubjectDetector` instance, or ``None`` to skip
+            YOLO person detection.
+        conf_threshold: YOLO confidence threshold.
+        top_k: Max number of keyframes to save.
+
+    Returns:
+        List of saved image file paths.
+    """
+    if not action_results:
+        return []
+
+    # Rank actions: confidence desc, then duration desc as tiebreaker
+    ranked = sorted(action_results,
+                    key=lambda a: (a["score"], a["end"] - a["start"]),
+                    reverse=True)
+
+    # Deduplicate by label to avoid saving multiple frames of the same class
+    seen_labels = set()
+    selected = []
+    for act in ranked:
+        if act["label"] in seen_labels:
+            continue
+        if len(selected) >= top_k:
+            break
+        seen_labels.add(act["label"])
+        selected.append(act)
+
+    # Open video to seek frames
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise RuntimeError(f"Cannot open video: {video_path}")
+
+    src_fps = cap.get(cv2.CAP_PROP_FPS)
+    src_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    src_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    src_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    if src_fps <= 0:
+        src_fps = 30.0
+
+    video_duration = src_total / src_fps if src_fps > 0 else 0
+
+    # Output subdirectory: output_dir/keyframes/video_name/
+    keyframe_dir = os.path.join(output_dir, "keyframes", video_name)
+    os.makedirs(keyframe_dir, exist_ok=True)
+
+    saved_paths = []
+
+    for rank, act in enumerate(selected):
+        # Midpoint of the action segment
+        mid_ts = (act["start"] + act["end"]) / 2.0
+        frame_idx = int(mid_ts * src_fps)
+        frame_idx = max(0, min(src_total - 1, frame_idx))
+
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame_bgr = cap.read()
+        if not ret:
+            continue
+
+        # Resize to a standard width if too large (max 1280px wide)
+        h, w = frame_bgr.shape[:2]
+        if w > 1280:
+            scale = 1280.0 / w
+            new_w, new_h = int(w * scale), int(h * scale)
+            frame_bgr = cv2.resize(frame_bgr, (new_w, new_h),
+                                   interpolation=cv2.INTER_LINEAR)
+
+        # YOLO person detection
+        persons = []
+        if detector is not None:
+            persons = detector.detect(frame_bgr, conf_threshold=conf_threshold)
+
+        # Active actions at midpoint timestamp
+        active = get_active_actions(mid_ts, action_results, max_display=3)
+
+        # Draw overlays
+        draw_yolo_boxes(frame_bgr, persons)
+        draw_action_overlay(frame_bgr, active)
+        draw_timeline_strip(frame_bgr, action_results, mid_ts, video_duration)
+
+        # Build filename: {rank}_{label}_conf{score}_{start}s-{end}s.jpg
+        safe_label = act["label"].replace(" ", "_")
+        fname = (f"{rank+1:02d}_{safe_label}_"
+                 f"conf{act['score']:.2f}_"
+                 f"{act['start']:.1f}s-{act['end']:.1f}s.jpg")
+        out_path = os.path.join(keyframe_dir, fname)
+        cv2.imwrite(out_path, frame_bgr,
+                    [cv2.IMWRITE_JPEG_QUALITY, 92])
+        saved_paths.append(out_path)
+
+    cap.release()
+    return saved_paths
