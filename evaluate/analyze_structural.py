@@ -60,6 +60,9 @@ GROUP_COLORS = {
     'SE':       PALETTE["blue_secondary"],
 }
 
+BASELINE_MAP = 68.51
+UNIFIED_COLORS = [PALETTE["blue_main"], PALETTE["blue_secondary"], PALETTE["teal"]]
+
 METRICS = ['mAP_03', 'mAP_05', 'mAP_07', 'avg_mAP']
 METRIC_LABELS = ['mAP@0.3', 'mAP@0.5', 'mAP@0.7', '平均 mAP']
 
@@ -86,6 +89,64 @@ def load_results(csv_path):
     return results
 
 
+def _plot_group_bar(results, group, filename, colors, title):
+    """Grouped bar chart: baseline + experiments in *group*, 4 metrics side-by-side."""
+    exps = sorted([e for e, r in results.items() if r['group'] == group])
+    if not exps:
+        return
+
+    # Baseline + experiments
+    all_bars = ['基线'] + exps
+    n_all = len(all_bars)
+    n_metrics = len(METRICS)
+    bar_width = 0.16
+    group_width = n_all * bar_width + 0.22
+    fig_width = max(10, n_metrics * 2.2 + 3)
+    fig, ax = plt.subplots(figsize=(fig_width, 6))
+
+    baseline_vals = [BASELINE_MAP] * n_metrics
+    baseline_color = PALETTE["red_strong"]
+
+    for bi, bar_label in enumerate(all_bars):
+        if bar_label == '基线':
+            vals = baseline_vals
+            color = baseline_color
+            label = f'基线 ({BASELINE_MAP})'
+        else:
+            r = results[bar_label]
+            vals = [r[m] for m in METRICS]
+            ei = exps.index(bar_label)
+            color = colors[ei % len(colors)]
+            label = f"{bar_label}: {r['name']}"
+
+        x_positions = [mi * group_width + bi * bar_width
+                       - (n_all - 1) * bar_width / 2
+                       for mi in range(n_metrics)]
+        bars = ax.bar(x_positions, vals, bar_width, color=color,
+                      edgecolor='black', linewidth=1.0, label=label)
+        for bar, val in zip(bars, vals):
+            clr = PALETTE["dark"] if bar_label == '基线' else color
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.8,
+                    f'{val:.1f}', ha='center', fontsize=10, color=clr,
+                    fontweight='bold')
+
+    group_centers = [i * group_width for i in range(n_metrics)]
+    ax.set_xticks(group_centers)
+    ax.set_xticklabels(METRIC_LABELS, fontsize=13)
+    ax.set_ylabel('mAP (%)', fontsize=14)
+    ax.set_title(title, fontsize=16)
+    all_vals = [r[m] for r in [results[e] for e in exps] for m in METRICS] + baseline_vals
+    ax.set_ylim(0, max(all_vals) * 1.18 + 2)
+    ax.legend(fontsize=8, ncol=1, loc='upper left',
+              bbox_to_anchor=(1.01, 1))
+
+    plt.tight_layout(pad=2)
+    path = os.path.join(RESULT_DIR, filename)
+    plt.savefig(path)
+    plt.close()
+    print(f"  图表: {path}")
+
+
 def create_plots(results):
     if len(results) < 2:
         print("  数据不足")
@@ -95,37 +156,25 @@ def create_plots(results):
     groups = sorted(set(r['group'] for r in results.values()))
 
     # ====================================================================
-    # Plot 1: 全量总览 — avg_mAP by group color
+    # Plot 1: BiFPN 分组对比
     # ====================================================================
-    fig, ax = plt.subplots(figsize=(16, 6))
-    avgs = [results[e]['avg_mAP'] for e in ids]
-    colors = [GROUP_COLORS.get(results[e]['group'], PALETTE["neutral"]) for e in ids]
-    names = [f"{e}\n{results[e]['name'][:18]}" for e in ids]
+    _plot_group_bar(results, 'BiFPN', 'structural_bifpn.png',
+                    UNIFIED_COLORS,
+                    'BiFPN 结构对比')
 
-    bars = ax.bar(range(len(ids)), avgs, color=colors, edgecolor='black', linewidth=1.0)
-    ax.set_xticks(range(len(ids)))
-    ax.set_xticklabels(names, fontsize=9)
-    ax.set_ylabel('平均 mAP (%)', fontsize=13)
-    ax.set_title('结构改进实验 — 全量总览', fontsize=15)
+    # ====================================================================
+    # Plot 2: RegLoss 分组对比
+    # ====================================================================
+    _plot_group_bar(results, 'RegLoss', 'structural_regloss.png',
+                    UNIFIED_COLORS,
+                    '回归损失函数对比')
 
-    # Value annotations
-    for bar, val in zip(bars, avgs):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.4,
-                f'{val:.2f}%', ha='center', fontsize=12, fontweight='bold',
-                color=PALETTE["dark"])
-
-    ax.set_ylim(0, max(avgs) * 1.12 + 2)
-
-    # Group legend
-    from matplotlib.patches import Patch
-    legend_handles = [Patch(facecolor=c, label=g) for g, c in GROUP_COLORS.items()]
-    ax.legend(handles=legend_handles, fontsize=11, loc='lower right')
-
-    plt.tight_layout(pad=2)
-    path = os.path.join(RESULT_DIR, 'structural_overview.png')
-    plt.savefig(path)
-    plt.close()
-    print(f"  图表: {path}")
+    # ====================================================================
+    # Plot 3: SE 分组对比
+    # ====================================================================
+    _plot_group_bar(results, 'SE', 'structural_se.png',
+                    UNIFIED_COLORS,
+                    'SE 通道注意力对比')
 
     # ====================================================================
     # Plot 2: 多指标分组柱状图 — 8 实验 × 4 指标
@@ -147,17 +196,22 @@ def create_plots(results):
                       edgecolor='black', linewidth=0.8,
                       label=f"{eid}: {r['name'][:20]}" if ei < 5 else None)
         for bar, val in zip(bars, vals):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
-                    f'{val:.0f}', ha='center', fontsize=7, color=gcolor)
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.8,
+                    f'{val:.1f}', ha='center', fontsize=7, color=gcolor)
 
     group_centers = [i * group_width for i in range(n_exp)]
     ax.set_xticks(group_centers)
-    ax.set_xticklabels([f"{eid}\n{results[eid]['name'][:16]}" for eid in ids],
+    ax.set_xticklabels([f"{eid}\n{results[eid]['name'][:40]}" for eid in ids],
                        fontsize=8)
     ax.set_ylabel('mAP (%)', fontsize=13)
     ax.set_title('结构改进 — 多指标分组对比', fontsize=15)
-    all_vals = [results[e][m] for e in ids for m in METRICS]
+    all_vals = [results[e][m] for e in ids for m in METRICS] + [BASELINE_MAP] * n_metrics
     ax.set_ylim(0, max(all_vals) * 1.15 + 2)
+
+    # Baseline horizontal reference
+    ax.axhline(y=BASELINE_MAP, color=PALETTE["red_strong"], linestyle='--',
+              linewidth=1, alpha=0.6, label=f'基线 ({BASELINE_MAP})')
+    ax.legend(fontsize=8, loc='lower right')
 
     # Metric legend as text
     from matplotlib.patches import Patch
@@ -200,11 +254,16 @@ def create_plots(results):
     ax.set_title('各组最优方案对比', fontsize=15)
 
     for bar, val in zip(bars, best_avgs):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.8,
                 f'{val:.2f}%', ha='center', fontsize=14, fontweight='bold',
                 color=PALETTE["dark"])
 
-    ax.set_ylim(0, max(best_avgs) * 1.15 + 3)
+    ax.set_ylim(0, max(best_avgs + [BASELINE_MAP]) * 1.15 + 3)
+
+    # Baseline reference line
+    ax.axhline(y=BASELINE_MAP, color=PALETTE["red_strong"], linestyle='--',
+              linewidth=1.5, alpha=0.6, label=f'基线 ({BASELINE_MAP})')
+    ax.legend(fontsize=10, loc='lower right')
     plt.tight_layout(pad=2)
     path = os.path.join(RESULT_DIR, 'structural_best.png')
     plt.savefig(path)

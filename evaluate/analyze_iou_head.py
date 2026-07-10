@@ -63,6 +63,7 @@ ITER_COLORS = {
 METRICS = ['mAP_03', 'mAP_05', 'mAP_07', 'avg_mAP']
 METRIC_LABELS = ['mAP@0.3', 'mAP@0.5', 'mAP@0.7', '平均 mAP']
 TIOU_STEPS = [0.3, 0.5, 0.7]
+BASELINE_MAP = 68.51
 
 
 def load_results(csv_path):
@@ -108,7 +109,7 @@ def create_plots(results):
                 markersize=10, label=label)
         for x, y in zip(TIOU_STEPS, vals):
             ax.annotate(f'{y:.1f}%', (x, y), textcoords="offset points",
-                       xytext=(0, 10), ha='center', fontsize=11,
+                       xytext=(0, 12), ha='center', fontsize=11,
                        color=color, fontweight='bold')
 
     ax.set_xlabel('tIoU 阈值', fontsize=14)
@@ -118,6 +119,11 @@ def create_plots(results):
     ax.legend(fontsize=10, loc='lower left')
     ax.grid(True, alpha=0.15, linewidth=0.5)
     ax.set_ylim(30, max(results[e]['mAP_03'] for e in ids) * 1.15)
+
+    # Baseline reference
+    ax.axhline(y=BASELINE_MAP, color=PALETTE["red_strong"], linestyle='--',
+              linewidth=1.5, alpha=0.5, label=f'基线 ({BASELINE_MAP})')
+    ax.legend(fontsize=10, loc='lower left')
 
     plt.tight_layout(pad=2)
     path = os.path.join(RESULT_DIR, 'iou_head_tiou_curve.png')
@@ -145,7 +151,7 @@ def create_plots(results):
                       edgecolor='black', linewidth=1.0,
                       label=f"{eid}: {r['name'][:25]}")
         for bar, val in zip(bars, vals):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.4,
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1.0,
                     f'{val:.1f}', ha='center', fontsize=9, color=color,
                     fontweight='bold')
 
@@ -162,12 +168,16 @@ def create_plots(results):
 
     group_centers = [i * group_width for i in range(n_iter)]
     ax.set_xticks(group_centers)
-    ax.set_xticklabels([f"{eid}\n{results[eid]['name'][:20]}" for eid in ids],
-                       fontsize=10)
+    ax.set_xticklabels([f"{eid}\n{results[eid]['name'][:40]}" for eid in ids],
+                       fontsize=9)
     ax.set_ylabel('mAP (%)', fontsize=14)
     ax.set_title('IoU Head 迭代 — 多指标对比', fontsize=15)
     all_vals = [results[e][m] for e in ids for m in METRICS]
-    ax.set_ylim(0, max(all_vals) * 1.15 + 2)
+    ax.set_ylim(0, max(all_vals + [BASELINE_MAP]) * 1.15 + 2)
+
+    # Baseline reference line
+    ax.axhline(y=BASELINE_MAP, color=PALETTE["red_strong"], linestyle='--',
+              linewidth=1.5, alpha=0.5, label=f'基线 ({BASELINE_MAP})')
 
     # Metric legend label
     metric_note = '  '.join(METRIC_LABELS)
@@ -231,7 +241,12 @@ def create_plots(results):
     ax.set_ylabel('avg_mAP (%)', fontsize=14)
     ax.set_title('IoU Head 迭代 — 改进步幅', fontsize=15)
     ax.legend(fontsize=10, loc='upper left')
-    ax.set_ylim(0, final_val * 1.15)
+    ax.set_ylim(0, max(final_val, BASELINE_MAP) * 1.15)
+
+    # Baseline reference line
+    ax.axhline(y=BASELINE_MAP, color=PALETTE["red_strong"], linestyle='--',
+              linewidth=1.5, alpha=0.5,
+              label=f'基线 ({BASELINE_MAP})')
 
     plt.tight_layout(pad=2)
     path = os.path.join(RESULT_DIR, 'iou_head_waterfall.png')
