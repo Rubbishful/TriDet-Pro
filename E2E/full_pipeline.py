@@ -21,7 +21,9 @@ Usage:
 import argparse
 import os
 import sys
+import json
 import time
+from datetime import timedelta
 
 import numpy as np
 import torch
@@ -179,6 +181,9 @@ def main():
     print(f"         Done in {time.time() - t1:.1f}s")
     print(f"         Total frames={total_frames}, FPS={actual_fps}, Duration={duration:.1f}s")
 
+    stage_times = {}
+    stage_times["frame_extraction"] = round(time.time() - t1, 2)
+
     # ========================================================================
     # Step 2: Optical flow (Farneback)
     # ========================================================================
@@ -192,6 +197,7 @@ def main():
 
     print(f"         Input {total_frames} frames -> {flow_total} flow frames")
     print(f"         Done in {time.time() - t2:.1f}s")
+    stage_times["optical_flow"] = round(time.time() - t2, 2)
 
     # ========================================================================
     # Step 3: I3D feature extraction (2048-dim = RGB 1024 + Flow 1024)
@@ -242,6 +248,7 @@ def main():
     combined_feats = np.concatenate([rgb_feats, flow_feats], axis=1)
     print(f"[I3D] Combined feature shape: {combined_feats.shape}  (2048-dim)")
     print(f"         Done in {time.time() - t3:.1f}s")
+    stage_times["i3d_features"] = round(time.time() - t3, 2)
 
     # Optional: save intermediate features
     if args.save_npy:
@@ -330,6 +337,7 @@ def main():
     )
 
     print(f"         Done in {time.time() - t4:.1f}s")
+    stage_times["tridet_inference"] = round(time.time() - t4, 2)
 
     # ========================================================================
     # Step 5: Save results TXT
@@ -338,7 +346,9 @@ def main():
     print(f"{step_str(5)} Save Detection Results")
     print("=" * 60)
 
+    t5 = time.time()
     save_results_txt(results, output_dir)
+    stage_times["save_results"] = round(time.time() - t5, 2)
 
     # ========================================================================
     # Step 6-7: YOLO + Annotated Video (optional)
@@ -395,8 +405,28 @@ def main():
                 print(f"       {p}")
 
         print(f"\n         Done in {time.time() - t6:.1f}s")
+        stage_times["visualization"] = round(time.time() - t6, 2)
 
     overall_end = time.time()
+
+    # --- Write profiling JSON ---
+    profiling = {
+        "video_path": video_path,
+        "video_name": vid_name,
+        "video_duration_hms": str(timedelta(seconds=int(duration))),
+        "video_duration_seconds": round(duration, 2),
+        "total_frames": total_frames,
+        "fps": round(actual_fps, 2),
+        "stages": stage_times,
+        "total_time_seconds": round(overall_end - overall_start, 2),
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    os.makedirs(output_dir, exist_ok=True)
+    profile_path = os.path.join(output_dir, f"{vid_name}_profile.json")
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(profiling, f, indent=2, ensure_ascii=False)
+    print(f"[INFO] Profiling saved: {profile_path}")
+
     print("\n" + "=" * 60)
     print("  Pipeline Complete!")
     print("=" * 60)

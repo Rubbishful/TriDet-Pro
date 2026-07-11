@@ -32,6 +32,7 @@ import os
 import pickle
 import sys
 import time
+from datetime import timedelta
 
 import numpy as np
 import torch
@@ -170,10 +171,12 @@ def extract_features_for_videos(video_dir, output_dir, args):
                 "duration": existing.shape[0] * args.feat_stride / args.target_fps,
                 "total_frames": existing.shape[0] * args.feat_stride,
                 "num_windows": existing.shape[0],
+                "feature_extraction_time": 0,
             }
             continue
 
         print(f"\n[{idx+1}/{len(video_files)}] {video_id}: Extracting...")
+        t_vid = time.time()
 
         try:
             # Load frames
@@ -223,6 +226,7 @@ def extract_features_for_videos(video_dir, output_dir, args):
                 "duration": duration,
                 "total_frames": total_frames,
                 "num_windows": feats.shape[0],
+                "feature_extraction_time": round(time.time() - t_vid, 2),
             }
             print(f"  [OK] frames={total_frames} windows={feats.shape[0]} dim={feats.shape[1]} [{feats.nbytes/1024/1024:.1f}MB]")
 
@@ -801,6 +805,41 @@ Input format:
     print(f"    Results CSV:    {csv_path}")
     print(f"    Config:         {config_path}")
     print(f"    Annotations:    {annotations_path}")
+
+    # --- Write profiling JSON ---
+    per_video = {}
+    for vid, info in video_meta.items():
+        per_video[vid] = {
+            "duration_hms": str(timedelta(seconds=int(info.get("duration", 0)))),
+            "duration_seconds": round(info.get("duration", 0), 2),
+            "total_frames": info.get("total_frames", 0),
+            "fps": round(info.get("fps", 0), 2) if info.get("fps", 0) else 0,
+            "feature_extraction_time": round(info.get("feature_extraction_time", 0), 2),
+            "num_windows": info.get("num_windows", 0),
+        }
+
+    profiling = {
+        "video_dir": video_dir,
+        "total_videos": len(video_meta),
+        "total_detections": len(predictions["video-id"]),
+        "aggregate_stages": {
+            "feature_extraction": round(t1 - t0, 2),
+            "config_generation": round(t2 - t1, 2),
+            "tridet_inference": round(t3 - t2, 2),
+            "result_export": round(t4 - t3, 2),
+        },
+        "per_video": per_video,
+        "total_time_seconds": round(t5 - t0, 2),
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    if args.visualize:
+        profiling["aggregate_stages"]["visualization"] = round(t5 - t4, 2)
+
+    os.makedirs(output_dir, exist_ok=True)
+    profile_path = os.path.join(output_dir, "pipeline_profile.json")
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(profiling, f, indent=2, ensure_ascii=False)
+    print(f"[INFO] Profile saved: {profile_path}")
 
 
 if __name__ == "__main__":
